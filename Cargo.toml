@@ -1,8 +1,18 @@
 [package]
-name = "email-nwesletter-rust"
+name = "email-newsletter-rust"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ayush Tickoo <ayush.tickoo292000@gmail.com>"]
+
+[lib]
+name = "email_newsletter_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "email-newsletter-rust-bin1"
+path = "src/main.rs"
 
 [dependencies]
 actix-web = "4.0.0"
 tokio = { version = "1.0.0", features = ["macros", "rt-multi-thread"] }
+reqwest="0.11.0"

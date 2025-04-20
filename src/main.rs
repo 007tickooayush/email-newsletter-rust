@@ -1,19 +1,13 @@
-use actix_web::{web, App, HttpRequest, HttpServer, Responder};
-async fn greet(request: HttpRequest) -> impl Responder {
-    let name = request.match_info().get("name").unwrap_or("World");
-    
-    format!("Hello {}", name)
-}
+use std::net::TcpListener;
+use email_newsletter_rust::run;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
     
-    HttpServer::new(|| {
-        App::new()
-            .route("/", web::get().to(greet))
-            .route("/{name}", web::get().to(greet))
-    }).bind("0.0.0.0:9001")?
-        .run()
-        .await
+    let listener = TcpListener::bind("0.0.0.0:9001")?;
+    
+    // Bubble up the io::Error if we failed to bind the address
+    // Or else just .await on Server
+    run(listener)?.await
 }
