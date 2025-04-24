@@ -1,11 +1,21 @@
 use std::net::TcpListener;
-use email_newsletter_rust::run;
+use crate::configuration::get_configuration;
+use crate::startup::run;
+
+mod routes;
+mod configuration;
+mod startup;
+
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    println!("Hello, world!");
-    
-    let listener = TcpListener::bind("0.0.0.0:9001")?;
+
+    // Panic if we can't read the configuration file
+    let configuration = get_configuration().expect("Failed to read configuration");
+
+    // Remove the hardcoded 9001 port
+    let address = format!("0.0.0.0:{}", configuration.application_port);
+    let listener = TcpListener::bind(address)?;
     
     // Bubble up the io::Error if we failed to bind the address
     // Or else just .await on Server

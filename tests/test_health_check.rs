@@ -1,4 +1,6 @@
 use std::net::TcpListener;
+use sqlx::{PgConnection, Connection};
+use email_newsletter_rust::configuration::get_configuration;
 
 #[tokio::test]
 async fn test_health_check() {
@@ -19,6 +21,18 @@ async fn test_health_check() {
 #[tokio::test]
 async fn test_subscribe_returns_200_for_valid_data() {
     let address = spawn_app();
+
+    let configuration = get_configuration().expect("Failed to get Configuration!");
+    let db_conn_string = configuration.database.connection_string();
+
+    // The "Connection" trait must be in scope to invoke
+    // `PgConnection::connect`
+    // it is not an inherent method of the struct
+    // hence we also need to import `Connection` trait from sqlx
+    let connection = PgConnection::connect(&db_conn_string)
+        .await
+        .expect("Failed to connect to Postgres");
+
     let client = reqwest::Client::new();
 
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -70,7 +84,7 @@ fn spawn_app() -> String {
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
     // and return the server handle
-    let server = email_newsletter_rust::run(listener).expect("Failed to bind address");
+    let server = email_newsletter_rust::startup::run(listener).expect("Failed to bind address");
     let _ = tokio::spawn(server);
 
     format!("http://127.0.0.1:{}", port)
