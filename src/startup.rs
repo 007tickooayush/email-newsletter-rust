@@ -1,13 +1,21 @@
 use std::net::TcpListener;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use sqlx::PgConnection;
 use crate::routes::{health_check, subscribe};
 
-pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
-    let server = HttpServer::new(|| {
+pub fn run(listener: TcpListener, connection: PgConnection) -> Result<Server, std::io::Error> {
+    
+    // using web::Data to wrap the connection in smart pointer(Arc)
+    // as App required the app_data to implement Clone trait for "T"
+    // and in Arc<T> T is clonable, no matter what T is 
+    let connection = web::Data::new(connection);
+    
+    let server = HttpServer::new(move || {
         App::new()
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
+            .app_data(connection.clone())
     })
         .listen(listener)?
         .run();

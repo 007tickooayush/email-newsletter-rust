@@ -29,7 +29,7 @@ async fn test_subscribe_returns_200_for_valid_data() {
     // `PgConnection::connect`
     // it is not an inherent method of the struct
     // hence we also need to import `Connection` trait from sqlx
-    let connection = PgConnection::connect(&db_conn_string)
+    let mut connection = PgConnection::connect(&db_conn_string)
         .await
         .expect("Failed to connect to Postgres");
 
@@ -44,6 +44,14 @@ async fn test_subscribe_returns_200_for_valid_data() {
         .await
         .expect("Failed to execute request.");
     assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved subscription");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
 }
 
 #[tokio::test]
