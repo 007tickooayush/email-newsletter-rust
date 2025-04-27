@@ -1,5 +1,5 @@
 use std::net::TcpListener;
-use sqlx::{PgConnection, Connection};
+use sqlx::{Connection, PgPool};
 use crate::configuration::get_configuration;
 use crate::startup::run;
 
@@ -13,8 +13,9 @@ async fn main() -> std::io::Result<()> {
 
     // Panic if we can't read the configuration file
     let configuration = get_configuration().expect("Failed to read configuration");
-
-    let connection = PgConnection::connect(&configuration.database.connection_string())
+    
+    // USing Pool implementation in order to handle concurrency of database query executions
+    let connection = PgPool::connect(&configuration.database.connection_string())
         .await
         .expect("Failed to connect to Postgres [main]");
 
