@@ -1,6 +1,8 @@
 use std::net::TcpListener;
-use sqlx::{PgConnection, Connection, PgPool};
-use email_newsletter_rust::configuration::get_configuration;
+use sqlx::{PgConnection, Connection, PgPool, Executor};
+use uuid::Uuid;
+use email_newsletter_rust::configuration::{get_configuration, DatabaseSettings};
+
 
 pub struct TestApp {
     pub address: String,
@@ -97,10 +99,11 @@ async fn spawn_app() -> TestApp {
     let address = format!("http://127.0.0.1:{}", port);
 
     // Create db connection using PgPool(Pool) implementation of sqlx
-    let configuration = get_configuration().expect("Failed to get Configuration in spawn_app");
-    let db_pool = PgPool::connect(&configuration.database.connection_string())
-        .await
-        .expect("Failed to bind address for db spawn_app");
+    // randomize the db mame and use it for testing
+    let mut configuration = get_configuration().expect("Failed to get Configuration in spawn_app");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+
+    let db_pool = configure_database(&configuration.database).await;
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
     // and return the server handle
@@ -111,4 +114,40 @@ async fn spawn_app() -> TestApp {
         address,
         db_pool
     }
+}
+
+
+/// NOTE: there is no cleanup mechanism implemented the created databases using random V4 UUIDs
+/// For handling the complete process properly the active Database connections need to be terminated,
+/// And the databases need to be dropped
+/// ---
+/// That can be achieved using the "sqlx::test" macro
+///
+/// For more information regarding the issue check:
+/// https://stackoverflow.com/questions/73013414/drop-database-on-drop-using-sqlx-and-rust
+/// 
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // create database
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("Failed to establish connection in configure_database");
+
+    connection
+        .execute(format!(r#"
+            CREATE DATABASE "{}";
+        "#, config.database_name).as_str())
+        .await
+        .expect("FAILED to CREATE DATABASE configure_database");
+
+    // Database migrations
+    let db_conn_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to bind address for db spawn_app");
+
+    sqlx::migrate!("./migrations")
+        .run(&db_conn_pool)
+        .await
+        .expect("Failed to exectute migration of database");
+
+    db_conn_pool
 }
