@@ -614,6 +614,7 @@ dependencies = [
  "sqlx",
  "syn 1.0.109",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
