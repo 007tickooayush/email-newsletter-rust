@@ -125,7 +125,7 @@ async fn spawn_app() -> TestApp {
 ///
 /// For more information regarding the issue check:
 /// https://stackoverflow.com/questions/73013414/drop-database-on-drop-using-sqlx-and-rust
-/// 
+///
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     // create database
     let mut connection = PgConnection::connect(&config.connection_string_without_db())

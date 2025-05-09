@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse};
 use sqlx::{PgPool};
 use chrono::Utc;
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -25,11 +26,12 @@ pub async fn subscribe(
         subscriber_email = %form.email,
         subscriber_name = %form.name
     );
+    let _req_span_guard = request_span.enter();
 
-    // Using `enter` in an async function is not advised
-    // Check the section on `"Instrumenting Futures"`
-    let _req = request_span.enter();
-
+    // We do not call enter after the query_span
+    let query_span = tracing::info_span!(
+        "Saving new subscriber in database"
+    );
 
     tracing::info!(
       "request_id: {} - Adding '{}' '{}' as a subscriber",
@@ -50,6 +52,8 @@ pub async fn subscribe(
         Utc::now()
     )
         .execute(connection.get_ref())
+        // attach `.instrument` and await it
+        .instrument(query_span)
         .await {
         Ok(_) => {
             tracing::info!("request_id: {} New subscriber details have been saved", request_id);
