@@ -1,6 +1,10 @@
 use std::net::TcpListener;
 use env_logger::Env;
 use sqlx::{Connection, PgPool};
+use tracing::subscriber::set_global_default;
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_subscriber::{EnvFilter, Registry};
+use tracing_subscriber::layer::SubscriberExt;
 use crate::configuration::get_configuration;
 use crate::startup::run;
 
@@ -12,11 +16,30 @@ mod startup;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 
-    // `init` calls set_logger so this is all we need to do
-    // Ww are falling back to printing all logs at info level or above
-    // in case the RUST_LOG environment variable is not set
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    // REMOVED the env_logger::init() from the main function
 
+    // Printing all spans at info-level
+    // If the RUST_LOG env variable has not been set
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::from("info"));;
+
+    let formatting_layer = BunyanFormattingLayer::new(
+        "email_newsletter_rust".into(),
+        // Output the logs into the stdout
+        std::io::stdout
+    );
+
+    // the `with` function is provided by `SubscriberExt`, an extension trait
+    // for `Subscriber` exposed by `tracing_subscriber`
+    let subscriber = Registry::default()
+        // with from `layer::SubscriberExt` trait
+        .with(env_filter)
+        // implementing JSON based logging foe Elasitcsearch-friendly architecture
+        .with(JsonStorageLayer)
+        .with(formatting_layer);
+
+    // `tracing::subscriber::set_global_default` is utilized to specify the subscriber for span processing
+    set_global_default(subscriber).expect("Failed to set Global Subscriber");
 
     // Panic if we can't read the configuration file
     let configuration = get_configuration().expect("Failed to read configuration");
