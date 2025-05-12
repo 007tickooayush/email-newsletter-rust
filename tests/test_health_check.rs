@@ -1,12 +1,20 @@
 use std::net::TcpListener;
+use once_cell::sync::Lazy;
 use sqlx::{PgConnection, Connection, PgPool, Executor};
 use uuid::Uuid;
-use email_newsletter_rust::configuration::{get_configuration, DatabaseSettings};
+use email_newsletter_rust::configuration::{get_configuration, DatabaseSettings, Settings};
+use email_newsletter_rust::telemetry::{get_subscriber, init_subscriber};
 
+// Ensure that the `tracing` stack is only initialized once rather than for each test case
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber = get_subscriber("test".into(), "debug".into());
+    init_subscriber(subscriber);
+});
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: PgPool
+    pub db_pool: PgPool,
+    pub configuration: Settings
 }
 
 #[tokio::test]
@@ -27,9 +35,10 @@ async fn test_health_check() {
 
 #[tokio::test]
 async fn test_subscribe_returns_200_for_valid_data() {
-    let address = spawn_app().await.address;
+    let test_config = spawn_app().await;
 
-    let configuration = get_configuration().expect("Failed to get Configuration!");
+    // let configuration = get_configuration().expect("Failed to get Configuration!");
+    let configuration = test_config.configuration;
     let db_conn_string = configuration.database.connection_string();
 
     // The "Connection" trait must be in scope to invoke
@@ -44,7 +53,7 @@ async fn test_subscribe_returns_200_for_valid_data() {
 
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
-        .post(&format!("{}/subscriptions", &address))
+        .post(&format!("{}/subscriptions", &test_config.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -93,6 +102,11 @@ async fn test_subscribe_returns_400_for_missing_data() {
 /// Spin up the application in the background
 /// Return the address of the application i.e localhost:XXXX
 async fn spawn_app() -> TestApp {
+
+    // The first time `initialize` is invoked the code in `TRACING` is executed.
+    // Next invocations get skipped
+    Lazy::force(&TRACING);
+
     // We are not using the port 9001 here, instead we are binding to a random port provided by OS
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
@@ -112,7 +126,8 @@ async fn spawn_app() -> TestApp {
 
     TestApp {
         address,
-        db_pool
+        db_pool,
+        configuration
     }
 }
 

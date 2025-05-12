@@ -622,6 +622,7 @@ dependencies = [
  "config",
  "env_logger",
  "log",
+ "once_cell",
  "reqwest",
  "serde 1.0.219",
  "sqlx",
@@ -629,6 +630,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-bunyan-formatter",
+ "tracing-log 0.1.4",
  "tracing-subscriber",
  "uuid",
 ]
