@@ -32,15 +32,7 @@ pub async fn subscribe(
     let query_span = tracing::info_span!(
         "Saving new subscriber in database"
     );
-
-    tracing::info!(
-      "request_id: {} - Adding '{}' '{}' as a subscriber",
-        request_id,
-        form.email,
-        form.name
-    );
-
-    tracing::info!(" request_id: {} Saving new subscriber details in the database", request_id);
+    
     match sqlx::query!(
         r#"
             INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -56,7 +48,6 @@ pub async fn subscribe(
         .instrument(query_span)
         .await {
         Ok(_) => {
-            tracing::info!("request_id: {} New subscriber details have been saved", request_id);
             HttpResponse::Ok().finish()
         },
         Err(e) => {

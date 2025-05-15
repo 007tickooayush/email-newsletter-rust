@@ -7,8 +7,19 @@ use email_newsletter_rust::telemetry::{get_subscriber, init_subscriber};
 
 // Ensure that the `tracing` stack is only initialized once rather than for each test case
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let subscriber = get_subscriber("test".into(), "debug".into());
-    init_subscriber(subscriber);
+    let default_filter_lvl = "info".into();
+    let subscriber_name = "test".into();
+
+    // Cannot assign the output of `get_subscriber` to a variable based on the value of `TEST_LOG`
+    // because the sink is part of the type returned by `get_subscriber`, therefore they are not the
+    // same type. To work around it, but this is the most straight-forward way of moving forward.
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(subscriber_name, default_filter_lvl, std::io::stdout);
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(subscriber_name, default_filter_lvl, std::io::sink);
+        init_subscriber(subscriber);
+    }
 });
 
 pub struct TestApp {

@@ -3,6 +3,7 @@ use tracing_subscriber::{EnvFilter, Registry};
 use tracing::Subscriber;
 use tracing::subscriber::set_global_default;
 use tracing_log::LogTracer;
+use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 
 /// Composed multiple layers into `tracing`'s Subscriber
@@ -12,10 +13,16 @@ use tracing_subscriber::layer::SubscriberExt;
 /// return type of Subscriber returned by the function.
 /// We also call out the returned Value to be extending `Send` and `Sync` as it is
 /// required for the `init_subscriber` function.
-pub fn get_subscriber(
+pub fn get_subscriber<Sink>(
     name: String,
-    env_filter: String
-) -> impl Subscriber + Send + Sync {
+    env_filter: String,
+    sink: Sink,
+) -> impl Subscriber + Send + Sync
+where
+    // This Sink is utilized to define that the type of sink implements `MakeWriter` trait
+    // for lifetime 'a for all choices
+    Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static
+{
 
     // Printing all spans at info-level
     // If the RUST_LOG env variable has not been set
@@ -24,8 +31,7 @@ pub fn get_subscriber(
 
     let formatting_layer = BunyanFormattingLayer::new(
         name, // "email_newsletter_rust".into(),
-        // Output the logs into the stdout
-        std::io::stdout
+        sink
     );
 
     // the `with` function is provided by `SubscriberExt`, an extension trait
