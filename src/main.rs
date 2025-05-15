@@ -15,7 +15,7 @@ mod telemetry;
 async fn main() -> std::io::Result<()> {
 
     // Initializing the subscriber
-    let subscriber = get_subscriber("email_newsletter_rust".into(), "info".into());
+    let subscriber = get_subscriber("email_newsletter_rust".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
     // Panic if we can't read the configuration file
