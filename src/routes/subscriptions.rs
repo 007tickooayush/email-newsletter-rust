@@ -1,46 +1,39 @@
 use actix_web::{web, HttpResponse};
+use sqlx::{PgPool};
 use chrono::Utc;
-use sqlx::PgPool;
 use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
     name: String,
-    email: String,
+    email: String
 }
 
-#[tracing::instrument(
-    name = "Adding a new subscriber",
-    skip(form, connection),
-    fields(
-        request_id = %Uuid::new_v4(),
-        subscriber_email = %form.email,
-        subscriber_name = %form.name
-    )
-)]
 pub async fn subscribe(
     form: web::Form<FormData>,
     // Retrieving a connection from the application state!
     connection: web::Data<PgPool>,
 ) -> HttpResponse {
-    match insert_subscriber(&connection, &form)
-    .await
-    {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish()
-    }
-}
+    // Append a request ID to each set of execution in order to track the request in a better way
+    let request_id = Uuid::new_v4();
 
-#[tracing::instrument(
-    name = "Inserting new subscriber",
-    skip(form, connection_pool),
-)]
-pub async fn insert_subscriber(
-    connection_pool: &PgPool,
-    form: &FormData,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+    // Spans, like logs, have an associated level
+    // 'info_Span' creates a span at "info-level"
+    let request_span = tracing::info_span!(
+        "Adding a new subscriber",
+        %request_id,
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    );
+    let _req_span_guard = request_span.enter();
+
+    // We do not call enter after the query_span
+    let query_span = tracing::info_span!(
+        "Saving new subscriber in database"
+    );
+    
+    match sqlx::query!(
         r#"
             INSERT INTO subscriptions (id, email, name, subscribed_at)
             VALUES ($1, $2, $3, $4)
@@ -50,13 +43,16 @@ pub async fn insert_subscriber(
         form.name,
         Utc::now()
     )
-    .execute(connection_pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(" sqlx::Error::QueryBuilderError : {:?}", e);
-        e
-        // Using the ? operator to return early and propagate the error
-        // return sqlx::error
-    })?;
-    Ok(())
+        .execute(connection.get_ref())
+        // attach `.instrument` and await it
+        .instrument(query_span)
+        .await {
+        Ok(_) => {
+            HttpResponse::Ok().finish()
+        },
+        Err(e) => {
+            tracing::error!(" request_id: {} Failed to execute query :{}", request_id, e);
+            HttpResponse::InternalServerError().finish()
+        }
+    }
 }
