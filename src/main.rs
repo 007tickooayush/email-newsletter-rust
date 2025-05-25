@@ -22,9 +22,9 @@ async fn main() -> std::io::Result<()> {
     // Panic if we can't read the configuration file
     let configuration = get_configuration().expect("Failed to read configuration");
 
-    // USing Pool implementation in order to handle concurrency of database query executions
-    let connection = PgPool::connect(&configuration.database.connection_string().expose_secret())
-        .await
+    // Using Pool implementation in order to handle concurrency of database query executions
+    // only try to establish a connection when the pool is used for the first time.
+    let connection = PgPool::connect_lazy(&configuration.database.connection_string().expose_secret())
         .expect("Failed to connect to Postgres [main]");
 
     // Remove the hardcoded 9001 port

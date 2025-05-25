@@ -39,7 +39,8 @@ features = [
     "postgres",
     "uuid",
     "chrono",
-    "migrate"
+    "migrate",
+    "offline"
 ]
 
 # Needs to be added to resolve error[E0432] caused when building the application after importing sqls crate

@@ -1,3 +1,4 @@
+# Email Newsletter Rust
 
 ## NOTE: Run the [init_db.sh](./scripts/init_db.sh) before building/running the project else there will be sqlx expand error
 
@@ -16,4 +17,25 @@ sqlx migrate add create_subscriptions_table
 # The original `bunyan` requires NPM, but you can install a Rust-port with
 # `cargo install bunyan`
 TEST_LOG=true cargo test health_check_works | bunyan
+```
+
+## It must be invoked as a cargo subcommand All options after `--` are passed to cargo itself 
+## We need to point it at our library since it contains all our SQL queries.
+```bash
+cargo sqlx prepare -- --lib
+```
+
+## Build a docker image tagged as "email-newsletter-rust" according to the recipe specified in `Dockerfile`
+```bash
+docker build --tag email-newsletter-rust --file Dockerfile .
+```
+
+## Run the docker image
+```bash
+docker run -p 9001:9001 email-newsletter-rust
+```
+
+# Remove unused Docker objects (containers, images, volumes, etc.):
+```bash
+docker system prune -a --volumes
 ```
