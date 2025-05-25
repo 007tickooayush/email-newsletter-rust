@@ -1,0 +1,12 @@
+# NOTE: not to be imported in production projects
+
+# Separate settings will be used for local and docker containerized environments
+application:
+  port: 9001
+
+database:
+  host: "127.0.0.1"
+  port: 5432
+  username: "postgres"
+  password: "password"
+  database_name: "newsletter"

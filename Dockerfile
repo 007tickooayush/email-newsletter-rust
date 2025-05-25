@@ -19,4 +19,4 @@ ENV SQLX_OFFLINE true
 RUN cargo build --release
 
 # When `docker run` is executed, launch the binary built by the cargo build command
-ENTRYPOINT [".target/release/email-newsletter-rust"]
+ENTRYPOINT ["./target/release/email-newsletter-rust-bin1"]
