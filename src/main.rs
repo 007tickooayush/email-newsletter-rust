@@ -28,7 +28,7 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to connect to Postgres [main]");
 
     // Remove the hardcoded 9001 port
-    let address = format!("0.0.0.0:{}", configuration.application_port);
+    let address = format!("{}:{}", configuration.application.host , configuration.application.port);
     let listener = TcpListener::bind(address)?;
 
     // Bubble up the io::Error if we failed to bind the address
