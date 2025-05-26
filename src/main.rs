@@ -1,6 +1,7 @@
 use std::net::TcpListener;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, PgPool};
+use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::configuration::get_configuration;
 use crate::startup::run;
@@ -24,7 +25,9 @@ async fn main() -> std::io::Result<()> {
 
     // Using Pool implementation in order to handle concurrency of database query executions
     // only try to establish a connection when the pool is used for the first time.
-    let connection = PgPool::connect_lazy(&configuration.database.connection_string().expose_secret())
+    let connection = PgPoolOptions::new()
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy(&configuration.database.connection_string().expose_secret())
         .expect("Failed to connect to Postgres [main]");
 
     // Remove the hardcoded 9001 port

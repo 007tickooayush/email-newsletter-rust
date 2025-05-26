@@ -39,3 +39,22 @@ docker run -p 9001:9001 email-newsletter-rust
 ```bash
 docker system prune -a --volumes
 ```
+
+## Get the size of our docker image:
+```bash
+docker image inspect email-newsletter-rust --format='{{.Size}}'
+```
+
+# Testing Commands
+
+## Health check:
+```bash
+curl http://localhost:9001/health_check
+```
+
+## Subscribe to a newsletter:
+```bash
+curl --request POST \
+--data 'name=le%20guin&email=ursula_le_guin%40gmail.com' \
+http://localhost:9001/subscriptions --verbose
+``` 
