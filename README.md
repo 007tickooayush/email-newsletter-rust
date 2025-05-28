@@ -45,6 +45,11 @@ docker system prune -a --volumes
 docker image inspect email-newsletter-rust --format='{{.Size}}'
 ```
 
+## Combined command to build and run the docker image:
+```bash
+docker build --tag email-newsletter-rust --file Dockerfile . && docker run -p 9001:9001 email-newsletter-rust
+```
+
 # Testing Commands
 
 ## Health check:
