@@ -1,6 +1,7 @@
 use secrecy::{ExposeSecret, Secret};
 // added serde_aux for avoiding the interger deserialization error
 use serde_aux::field_attributes::deserialize_number_from_string;
+use sqlx::ConnectOptions;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 
 #[derive(serde::Deserialize)]
@@ -37,7 +38,10 @@ pub struct ApplicationSettings {
 
 impl DatabaseSettings {
     pub fn with_db(&self) -> PgConnectOptions {
-        self.without_db().database(&self.database_name)
+        let mut options = self.without_db().database(&self.database_name);
+        // Lowered the LOG_LEVEL of the SQL statements to Trace
+        options.log_statements(tracing::log::LevelFilter::Trace);
+        options
     }
 
     pub fn without_db(&self) -> PgConnectOptions {
