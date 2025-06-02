@@ -27,8 +27,7 @@ async fn main() -> std::io::Result<()> {
     // only try to establish a connection when the pool is used for the first time.
     let connection = PgPoolOptions::new()
         .connect_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy(&configuration.database.connection_string().expose_secret())
-        .expect("Failed to connect to Postgres [main]");
+        .connect_lazy_with(configuration.database.with_db());
 
     // Remove the hardcoded 9001 port
     let address = format!("{}:{}", configuration.application.host , configuration.application.port);

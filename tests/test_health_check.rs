@@ -51,13 +51,13 @@ async fn test_subscribe_returns_200_for_valid_data() {
 
     // let configuration = get_configuration().expect("Failed to get Configuration!");
     let configuration = test_config.configuration;
-    let db_conn_string = configuration.database.connection_string();
+    let db_conn = configuration.database.with_db();
 
     // The "Connection" trait must be in scope to invoke
     // `PgConnection::connect`
     // it is not an inherent method of the struct
     // hence we also need to import `Connection` trait from sqlx
-    let mut connection = PgConnection::connect(&db_conn_string.expose_secret())
+    let mut connection = PgConnection::connect_with(&db_conn)
         .await
         .expect("Failed to connect to Postgres");
 
@@ -155,7 +155,7 @@ async fn spawn_app() -> TestApp {
 ///
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     // create database
-    let mut connection = PgConnection::connect(&config.connection_string_without_db().expose_secret())
+    let mut connection = PgConnection::connect_with(&config.without_db())
         .await
         .expect("Failed to establish connection in configure_database");
 
@@ -167,7 +167,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("FAILED to CREATE DATABASE configure_database");
 
     // Database migrations
-    let db_conn_pool = PgPool::connect(&config.connection_string().expose_secret())
+    let db_conn_pool = PgPool::connect_with(config.with_db())
         .await
         .expect("Failed to bind address for db spawn_app");
 
