@@ -13,6 +13,8 @@ mod startup;
 
 mod telemetry;
 
+mod domain;
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 
