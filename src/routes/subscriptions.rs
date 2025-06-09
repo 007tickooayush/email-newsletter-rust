@@ -31,7 +31,7 @@ pub async fn subscribe(
     // `form.0` is utilized to access the underlying `FormData`
     let new_subscriber = crate::domain::NewSubscriber {
         email: form.0.email, // this is also available under `form.email`
-        name: crate::domain::SubscriberName::parse(form.0.name) // this is also available under `form.name`
+        name: crate::domain::SubscriberName::parse(form.0.name).expect("Name validation failed") // this is also available under `form.name`
     };
     match insert_subscriber(&connection, &new_subscriber)
         .await
@@ -76,7 +76,7 @@ pub async fn insert_subscriber(
         "#,
         Uuid::new_v4(),
         new_subscriber.email,
-        new_subscriber.name.inner_ref(),
+        new_subscriber.name.as_ref(),
         Utc::now()
     )
         .execute(connection_pool)

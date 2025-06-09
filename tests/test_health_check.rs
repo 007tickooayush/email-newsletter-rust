@@ -83,7 +83,7 @@ async fn test_subscribe_returns_200_for_valid_data() {
 }
 
 #[tokio::test]
-async fn test_subscribe_returns_400_for_missing_data() {
+async fn test_subscribe_returns_400_when_fields_are_present_but_invalid() {
     let address = spawn_app().await.address;
     let client = reqwest::Client::new();
 
@@ -109,6 +109,15 @@ async fn test_subscribe_returns_400_for_missing_data() {
             error_message
         );
     }
+}
+
+#[test]
+fn dummy_fail() {
+    // the "claim" dependency can be utilized to get details regarding
+    // In case if Err is returned while testing return type `Result<Ok,Err>` and when Err is returned
+    // there is no justification regarding the error, leaving all the details hidden for that test case
+    let result: Result<&str, &str> = Err("This is a dummy test");
+    claim::assert_err!(result);
 }
 
 /// Spin up the application in the background
