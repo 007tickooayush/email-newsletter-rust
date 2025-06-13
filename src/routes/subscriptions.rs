@@ -3,7 +3,6 @@ use chrono::Utc;
 use sqlx::PgPool;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
-use crate::domain::NewSubscriber;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -27,11 +26,17 @@ pub async fn subscribe(
     if !is_valid_name(&form.name) {
         return HttpResponse::BadRequest().finish();
     }
+
+    let name = match crate::domain::subscriber_name::SubscriberName::parse(form.0.name) {
+        Ok(name) => name,
+        Err(_) => return HttpResponse::BadRequest().finish(),
+    };
+
     // web::Form is a wrapper around `FormData`
     // `form.0` is utilized to access the underlying `FormData`
-    let new_subscriber = crate::domain::NewSubscriber {
+    let new_subscriber = crate::domain::new_subscriber::NewSubscriber {
         email: form.0.email, // this is also available under `form.email`
-        name: crate::domain::SubscriberName::parse(form.0.name).expect("Name validation failed") // this is also available under `form.name`
+        name
     };
     match insert_subscriber(&connection, &new_subscriber)
         .await
@@ -67,7 +72,7 @@ fn is_valid_name(name: &str) -> bool {
 )]
 pub async fn insert_subscriber(
     connection_pool: &PgPool,
-    new_subscriber: &NewSubscriber,
+    new_subscriber: &crate::domain::new_subscriber::NewSubscriber,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
