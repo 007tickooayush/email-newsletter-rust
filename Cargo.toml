@@ -47,6 +47,9 @@ features = [
     "offline"
 ]
 
+[dev-dependencies]
+fake = "~2.3.0"
+
 # Needs to be added to resolve error[E0432] caused when building the application after importing sqls crate
 # It occurs due to the conflict of "syn" version are added
 # check: https://github.com/launchbadge/sqlx/issues/2418

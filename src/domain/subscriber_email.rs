@@ -25,6 +25,13 @@ impl AsRef<str> for SubscriberEmail {
 mod tests {
     use super::SubscriberEmail;
     use claim::assert_err;
+
+    // We are importing the `SafeEmail` faker!
+    // We also need the `Fake` trait to get access to the
+    // `.fake` method on `SafeEmail`
+    use fake::faker::internet::en::SafeEmail;
+    use fake::Fake;
+
     #[test]
     fn empty_string_is_rejected() {
         let email = "".to_string();
@@ -39,5 +46,10 @@ mod tests {
     fn email_missing_subject_is_rejected() {
         let email = "@domain.com".to_string();
         assert_err!(SubscriberEmail::parse(email));
+    }
+    #[test]
+    fn valid_emails_are_parsed_successfully() {
+        let email = SafeEmail().fake();
+        claim::assert_ok!(SubscriberEmail::parse(email));
     }
 }
