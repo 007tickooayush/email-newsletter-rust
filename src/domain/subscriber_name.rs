@@ -43,6 +43,27 @@ impl AsRef<str> for SubscriberName {
     }
 }
 
+
+/// Returns true if the input satisfies all our validation constraints on subscriber's name
+pub fn is_valid_name(name: &str) -> bool {
+    let is_empty_or_whitespace = name.trim().is_empty();
+
+    // A grapheme is defined by the Unicode standard as a "user-perceived"
+    // character: `å` is a single grapheme, but it is composed of two characters
+    // (`a` and `̊`).
+    //
+    // `graphemes` returns an iterator over the graphemes in the input `s`.
+    // `true` specifies that we want to use the extended grapheme definition set,
+    // the recommended one.
+    let is_too_long = name.graphemes(true).count() > 256;
+
+    // Iterate over all characters in the input to check if any of them is matches the forbidden charaters
+    let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}'];
+    let contains_forbidden_characters = name.chars().any(|c| forbidden_characters.contains(&c));
+
+    !(is_empty_or_whitespace || is_too_long || contains_forbidden_characters)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::domain::subscriber_name::SubscriberName;
