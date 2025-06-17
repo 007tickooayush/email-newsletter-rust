@@ -12,13 +12,17 @@ pub struct FormData {
     email: String,
 }
 
-pub fn parse_subscriber(form: FormData) -> Result<NewSubscriber, String> {
-    let name = SubscriberName::parse(form.name)?;
-    let email = SubscriberEmail::parse(form.email)?;
-    Ok(NewSubscriber {
-        email,
-        name
-    })
+// TryFrom does not need t o be imported explicitly, as it is in the prelude
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(Self { name,
+            email
+        })
+    }
 }
 
 #[tracing::instrument(
@@ -35,7 +39,9 @@ pub async fn subscribe(
     connection: web::Data<PgPool>,
 ) -> HttpResponse {
 
-    let new_subscriber = match parse_subscriber(form.0) {
+    // This can also be written as `NewSubscriber::try_from(form.0)`
+    // The try_into(TryInto) implementation is provided for free by the `TryFrom` trait
+    let new_subscriber = match form.0.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => {
             // If the subscriber data is invalid, we return a BadRequest response
