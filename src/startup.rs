@@ -4,15 +4,23 @@ use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
 use sqlx::{PgPool};
 use tracing_actix_web::TracingLogger;
+use crate::email_client::EmailClient;
 use crate::routes::{health_check, subscribe};
 
-pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Error> {
+pub fn run(
+    listener: TcpListener,
+    db_pool: PgPool,
+    email_client: EmailClient
+) -> Result<Server, std::io::Error> {
 
     // using web::Data to wrap the connection in smart pointer(Arc)
     // as App required the app_data to implement Clone trait for "T"
     // and in Arc<T> T is clonable, no matter what T is
     let connection = web::Data::new(db_pool);
 
+    // Wrap the email client in web::Data to share it across requests
+    let email_client = web::Data::new(email_client);
+    
     let server = HttpServer::new(move || {
         App::new()
             .route("/health_check", web::get().to(health_check))

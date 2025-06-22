@@ -4,6 +4,7 @@ use secrecy::ExposeSecret;
 use sqlx::{PgConnection, Connection, PgPool, Executor};
 use uuid::Uuid;
 use email_newsletter_rust::configuration::{get_configuration, DatabaseSettings, Settings};
+use email_newsletter_rust::email_client::EmailClient;
 use email_newsletter_rust::telemetry::{get_subscriber, init_subscriber};
 
 // Ensure that the `tracing` stack is only initialized once rather than for each test case
@@ -140,9 +141,22 @@ async fn spawn_app() -> TestApp {
 
     let db_pool = configure_database(&configuration.database).await;
 
+    // Create a new `EmailClient` using the configuration
+    let sender_email = configuration.email_client.sender()
+        .expect("Invalid Sender Email Address");
+    let email_client = EmailClient::new(
+        // using clone as the configuration object is partially moved
+        configuration.email_client.base_url.clone(), 
+        sender_email
+    );
+
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
     // and return the server handle
-    let server = email_newsletter_rust::startup::run(listener, db_pool.clone()).expect("Failed to bind address");
+    let server = email_newsletter_rust::startup::run(
+        listener,
+        db_pool.clone(),
+        email_client
+    ).expect("Failed to bind address");
     let _ = tokio::spawn(server);
 
     TestApp {
