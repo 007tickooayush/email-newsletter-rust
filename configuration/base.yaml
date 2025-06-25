@@ -10,3 +10,6 @@ database:
   username: "postgres"
   password: "password"
   database_name: "newsletter"
+  # Setting only the development value for the `authorization_token` of EmailClient
+  # For production's authorization_token, the value will be outside from version control
+  authorization_token: "my-secret-token"

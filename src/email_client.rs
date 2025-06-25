@@ -1,5 +1,5 @@
 use reqwest::Client;
-
+use secrecy::{ExposeSecret, Secret};
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
 use crate::email_request::{FromEmailRequest, SendEmailRequest, ToEmailRequest};
@@ -8,16 +8,23 @@ pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender: SubscriberEmail,
-    sender_name: SubscriberName
+    sender_name: SubscriberName,
+    authorization_token: Secret<String>
 }
 
 impl EmailClient {
-    pub fn new(base_url: String, sender: SubscriberEmail, sender_name: SubscriberName) -> Self {
+    pub fn new(
+        base_url: String,
+        sender: SubscriberEmail,
+        sender_name: SubscriberName,
+        authorization_token: Secret<String>
+    ) -> Self {
         Self {
             http_client: Client::new(),
             base_url,
             sender,
-            sender_name
+            sender_name,
+            authorization_token
         }
     }
 
@@ -48,10 +55,14 @@ impl EmailClient {
             to,
             subject: subject.to_owned(),
             text: text_content.to_owned(),
-            category: category.to_owned() 
+            category: category.to_owned()
         };
 
-        let builder = self.http_client.post(&url);
+        let builder = self
+            .http_client
+            .post(&url)
+            .header("Authorization", self.authorization_token.expose_secret())
+            .json(&request_body);
 
         Ok(())
     }
@@ -59,10 +70,11 @@ impl EmailClient {
 
 #[cfg(test)]
 mod tests {
-    use fake::Fake;
+    use fake::{Fake, Faker};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence, Word};
     use fake::faker::name::en::FirstName;
+    use secrecy::Secret;
     use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::any;
     use crate::domain::subscriber_email::SubscriberEmail;
@@ -76,7 +88,12 @@ mod tests {
 
         // just the first name should suffice
         let sender_name = SubscriberName::parse(FirstName().fake()).unwrap();
-        let email_client = EmailClient::new(mock_server.uri(), sender, sender_name);
+        let email_client = EmailClient::new(
+            mock_server.uri(),
+            sender,
+            sender_name,
+            Secret::new(Faker.fake())
+        );
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))

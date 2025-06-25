@@ -18,14 +18,15 @@ pub struct Settings {
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
-    pub sender_name: String
+    pub sender_name: String,
+    pub authorization_token: Secret<String>
 }
 
 impl EmailClientSettings {
     pub fn sender(&self) -> Result<SubscriberEmail, String> {
         SubscriberEmail::parse(self.sender_email.clone())
     }
-    
+
     pub fn sender_name(&self) -> Result<SubscriberName, String> {
         SubscriberName::parse(self.sender_name.clone())
     }

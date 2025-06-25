@@ -152,7 +152,8 @@ async fn spawn_app() -> TestApp {
         // using clone as the configuration object is partially moved
         configuration.email_client.base_url.clone(),
         sender_email,
-        sender_name
+        sender_name,
+        configuration.email_client.authorization_token.clone()
     );
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
