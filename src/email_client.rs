@@ -78,7 +78,7 @@ mod tests {
     use fake::faker::name::en::FirstName;
     use secrecy::Secret;
     use wiremock::{Mock, MockServer, ResponseTemplate};
-    use wiremock::matchers::any;
+    use wiremock::matchers::{any, header, header_exists, method, path};
     use crate::domain::subscriber_email::SubscriberEmail;
     use crate::domain::subscriber_name::SubscriberName;
     use crate::email_client::EmailClient;
@@ -97,7 +97,10 @@ mod tests {
             Secret::new(Faker.fake())
         );
 
-        Mock::given(any())
+        Mock::given(header_exists("Authorization")) // in Postmark "X-Postmark-Server-Token" is utilized
+            .and(header("Content-type", "application/json"))
+            .and(path("/api/send")) // in Postmark path "/email" is utilized
+            .and(method("POST"))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
             .mount(&mock_server)
