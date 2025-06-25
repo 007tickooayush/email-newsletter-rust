@@ -35,16 +35,16 @@ impl EmailClient {
         // html_content: &str,  // No html content required in MailTrap email schema
         text_content: &str,
         category: &str
-    ) -> Result<(), String> {
+    ) -> Result<(), reqwest::Error> {
 
         // Converting the base_url type from String to reqwest::Url
         // Enables us to use reqwest::url::join for better URL handling
         let url = format!("{}/api/send", self.base_url);
 
-        let from = FromEmailRequest::new(
-            SubscriberEmail::parse(self.sender.as_ref().to_owned())?, // using `as_ref` function as it returns directly &str from the type
-            SubscriberName::parse(self.sender_name.as_ref().to_owned())?
-        );
+        // using `as_ref` function as it returns directly &str from the type
+        let from_email = SubscriberEmail::parse(self.sender.as_ref().to_owned()).expect("Send Attempt for anInvalid Email");
+        let from_name = SubscriberName::parse(self.sender_name.as_ref().to_owned()).expect("Send Attempt for an Invalid Name");
+        let from = FromEmailRequest::new(from_email, from_name);
 
         let to = vec![
             ToEmailRequest::new(recipient),
@@ -62,7 +62,9 @@ impl EmailClient {
             .http_client
             .post(&url)
             .header("Authorization", self.authorization_token.expose_secret())
-            .json(&request_body);
+            .json(&request_body)
+            .send()
+            .await?;
 
         Ok(())
     }
