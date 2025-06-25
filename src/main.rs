@@ -16,6 +16,7 @@ mod telemetry;
 
 mod domain;
 mod email_client;
+mod email_request;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -36,9 +37,12 @@ async fn main() -> std::io::Result<()> {
     // A new `EmailClient` created using `configuration`
     let sender_email = configuration.email_client.sender()
         .expect("Invalid Sender Email Address");
+    let sender_name = configuration.email_client.sender_name()
+        .expect("Invalid Sender Name");
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
-        sender_email
+        sender_email,
+        sender_name
     );
 
     // Remove the hardcoded 9001 port

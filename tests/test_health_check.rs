@@ -144,10 +144,15 @@ async fn spawn_app() -> TestApp {
     // Create a new `EmailClient` using the configuration
     let sender_email = configuration.email_client.sender()
         .expect("Invalid Sender Email Address");
+    
+    let sender_name = configuration.email_client.sender_name()
+        .expect("Invalid Sender Name");
+    
     let email_client = EmailClient::new(
         // using clone as the configuration object is partially moved
-        configuration.email_client.base_url.clone(), 
-        sender_email
+        configuration.email_client.base_url.clone(),
+        sender_email,
+        sender_name
     );
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
