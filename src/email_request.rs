@@ -26,6 +26,9 @@ impl ToEmailRequest {
 }
 
 #[derive(serde::Serialize)]
+// utilize if pascal case of the fields is required
+// may be required in case of postmark
+// #[serde(rename_all = "PascalCase")] 
 pub struct SendEmailRequest {
     pub from: FromEmailRequest,
     pub to: Vec<ToEmailRequest>,

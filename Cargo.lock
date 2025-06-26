@@ -709,6 +709,7 @@ dependencies = [
  "secrecy",
  "serde 1.0.219",
  "serde-aux",
+ "serde_json",
  "sqlx",
  "syn 1.0.109",
  "tokio",

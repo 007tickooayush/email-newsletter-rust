@@ -77,11 +77,35 @@ mod tests {
     use fake::faker::lorem::en::{Paragraph, Sentence, Word};
     use fake::faker::name::en::FirstName;
     use secrecy::Secret;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{Mock, MockServer, Request, ResponseTemplate};
     use wiremock::matchers::{any, header, header_exists, method, path};
     use crate::domain::subscriber_email::SubscriberEmail;
     use crate::domain::subscriber_name::SubscriberName;
     use crate::email_client::EmailClient;
+
+    struct SendEmailBodyMatcher;
+
+    impl wiremock::Match for SendEmailBodyMatcher {
+        fn matches(&self, request: &Request) -> bool {
+            let result: Result<serde_json::Value, _> = serde_json::from_slice(&request.body);
+
+            // NOTE: PascalCase is only required in case of PostMark not in case of MailTrap
+            if let Ok(body) = result {
+                // Uncomment the line below to debug the request body
+                // dbg!(&body);
+                
+                // Implementing the matcher's boolean result based on MailTrap's email schema
+                // All the mandatory fields are checked
+                body.get("from").is_some() &&
+                    body.get("to").is_some() &&
+                    body.get("subject").is_some() &&
+                    body.get("text").is_some() &&
+                    body.get("category").is_some()
+            } else {
+                false
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_send_email_fires_a_request_to_base_url() {
@@ -101,6 +125,8 @@ mod tests {
             .and(header("Content-type", "application/json"))
             .and(path("/api/send")) // in Postmark path "/email" is utilized
             .and(method("POST"))
+            // utilizing the Email body matcher
+            .and(SendEmailBodyMatcher)
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
             .mount(&mock_server)
