@@ -5,6 +5,8 @@ database:
 email_client:
   base_url: "localhost"
   sender_email: "test@gmail.com"
+  sender_name: "Test User"
   # Setting only the development value for the `authorization_token` of EmailClient
   # For production's authorization_token, the value will be outside from version control
   authorization_token: "Bearer my-secret-token"
+  timeout_milliseconds: 10000

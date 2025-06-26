@@ -28,11 +28,13 @@ impl ToEmailRequest {
 #[derive(serde::Serialize)]
 // utilize if pascal case of the fields is required
 // may be required in case of postmark
-// #[serde(rename_all = "PascalCase")] 
-pub struct SendEmailRequest {
+// #[serde(rename_all = "PascalCase")]
+pub struct SendEmailRequest<'mail> {
     pub from: FromEmailRequest,
     pub to: Vec<ToEmailRequest>,
-    pub subject: String,
-    pub text: String,
-    pub category: String
+    // optimizing the struct by using &str instead of String
+    // which requires a new memory allocation every time
+    pub subject: &'mail str,
+    pub text: &'mail str,
+    pub category: &'mail str
 }

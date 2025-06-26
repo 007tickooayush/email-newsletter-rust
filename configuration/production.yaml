@@ -6,3 +6,5 @@ email_client:
   base_url: "https://send.api.mailtrap.io" # Mailtrap API Base URL
 #  base_url: "https://api.postmarkapp.com" # PostMark API Base URL (Not Used)
   sender_email: "donotreply@ayush-tickoo.in"
+  sender_name: "Ayush Tickoo"
+  timeout_milliseconds: 10000

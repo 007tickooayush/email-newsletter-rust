@@ -39,11 +39,13 @@ async fn main() -> std::io::Result<()> {
         .expect("Invalid Sender Email Address");
     let sender_name = configuration.email_client.sender_name()
         .expect("Invalid Sender Name");
+    let timeout = configuration.email_client.timeout();
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
         sender_email,
         sender_name,
-        configuration.email_client.authorization_token
+        configuration.email_client.authorization_token,
+        timeout
     );
 
     // Remove the hardcoded 9001 port

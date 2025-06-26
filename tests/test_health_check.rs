@@ -147,13 +147,14 @@ async fn spawn_app() -> TestApp {
     
     let sender_name = configuration.email_client.sender_name()
         .expect("Invalid Sender Name");
-    
+    let timeout = configuration.email_client.timeout();
     let email_client = EmailClient::new(
         // using clone as the configuration object is partially moved
         configuration.email_client.base_url.clone(),
         sender_email,
         sender_name,
-        configuration.email_client.authorization_token.clone()
+        configuration.email_client.authorization_token.clone(),
+        timeout
     );
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function

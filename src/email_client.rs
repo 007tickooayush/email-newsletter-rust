@@ -17,10 +17,17 @@ impl EmailClient {
         base_url: String,
         sender: SubscriberEmail,
         sender_name: SubscriberName,
-        authorization_token: Secret<String>
+        authorization_token: Secret<String>,
+        timeout: std::time::Duration
     ) -> Self {
+        // Complete Client-wide timeout configuration
+        // As opposed to request only timeout
+        let http_client = Client::builder()
+            .timeout(timeout) // Set a timeout for the HTTP client
+            .build()
+            .unwrap();
         Self {
-            http_client: Client::new(),
+            http_client,
             base_url,
             sender,
             sender_name,
@@ -33,7 +40,7 @@ impl EmailClient {
         recipient: SubscriberEmail,
         subject: &str,
         // html_content: &str,  // No html content required in MailTrap email schema
-        text_content: &str,
+        text: &str,
         category: &str
     ) -> Result<(), reqwest::Error> {
 
@@ -53,9 +60,9 @@ impl EmailClient {
         let request_body = SendEmailRequest {
             from,
             to,
-            subject: subject.to_owned(),
-            text: text_content.to_owned(),
-            category: category.to_owned()
+            subject,
+            text,
+            category
         };
 
         let builder = self
@@ -63,8 +70,12 @@ impl EmailClient {
             .post(&url)
             .header("Authorization", self.authorization_token.expose_secret())
             .json(&request_body)
+
+            // Uncomment the line below to timeout the request
+            // .timeout(std::time::Duration::from_secs(10))
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         Ok(())
     }
@@ -72,6 +83,7 @@ impl EmailClient {
 
 #[cfg(test)]
 mod tests {
+    use claim::{assert_err, assert_ok};
     use fake::{Fake, Faker};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence, Word};
@@ -93,7 +105,7 @@ mod tests {
             if let Ok(body) = result {
                 // Uncomment the line below to debug the request body
                 // dbg!(&body);
-                
+
                 // Implementing the matcher's boolean result based on MailTrap's email schema
                 // All the mandatory fields are checked
                 body.get("from").is_some() &&
@@ -107,19 +119,43 @@ mod tests {
         }
     }
 
+    fn subject() -> String {
+        Sentence(1..2).fake()
+    }
+    /// Generate a random email content
+    fn content() -> String {
+        Paragraph(1..10).fake()
+    }
+
+    /// Generate a random subscriber email
+    fn email() -> SubscriberEmail {
+        SubscriberEmail::parse(SafeEmail().fake()).unwrap()
+    }
+
+    fn category() -> String {
+        Word().fake()
+    }
+
+    fn sender_name() -> SubscriberName {
+        SubscriberName::parse(FirstName().fake()).unwrap()
+    }
+
+    /// Get a test instance of `EmailClient`.
+    fn email_client(base_url: String) -> EmailClient {
+        EmailClient::new(
+            base_url,
+            email(),
+            sender_name(),
+            Secret::new(Faker.fake()),
+            // lesser amount for testing
+            std::time::Duration::from_millis(200)
+        )
+    }
+
     #[tokio::test]
     async fn test_send_email_fires_a_request_to_base_url() {
         let mock_server = MockServer::start().await;
-        let sender = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
-
-        // just the first name should suffice
-        let sender_name = SubscriberName::parse(FirstName().fake()).unwrap();
-        let email_client = EmailClient::new(
-            mock_server.uri(),
-            sender,
-            sender_name,
-            Secret::new(Faker.fake())
-        );
+        let email_client = email_client(mock_server.uri());
 
         Mock::given(header_exists("Authorization")) // in Postmark "X-Postmark-Server-Token" is utilized
             .and(header("Content-type", "application/json"))
@@ -132,13 +168,57 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+
+        let outcome = email_client
+            .send_email(email(), &subject(), &content(), &category())
+            .await;
+
+        // Assert that the request was sent successfully
+        assert_ok!(outcome);
+    }
+
+    #[tokio::test]
+    async fn test_send_email_fails_if_the_server_returns_500() {
+        let mock_server = MockServer::start().await;
+        let email_client = email_client(mock_server.uri());
+
         let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
         let subject: String = Sentence(1..2).fake();
         let content: String = Paragraph(1..10).fake();
         let category: String = Word().fake();
 
-        let _ = email_client
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let outcome = email_client
             .send_email(subscriber_email, &subject, &content, &category)
             .await;
+
+        assert_err!(outcome);
+    }
+
+    #[tokio::test]
+    async fn test_email_times_out_if_the_server_takes_too_long() {
+        let mock_server = MockServer::start().await;
+        let email_client = email_client(mock_server.uri());
+
+        let response = ResponseTemplate::new(200)
+            // set the delay of 3 minutes
+            .set_delay(std::time::Duration::from_millis(300));
+
+        Mock::given(any())
+            .respond_with(response)
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let outcome = email_client
+            .send_email(email(), &subject(), &content(), &category())
+            .await;
+
+        assert_err!(outcome);
     }
 }
