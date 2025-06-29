@@ -52,7 +52,12 @@ pub async fn subscribe(
         .await
     {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish()
+        Err(e) => {
+            // Log the error and return an InternalServerError response
+            dbg!("new_subscriber: => Failed to insert new subscriber: {:?}", e);
+
+            HttpResponse::InternalServerError().finish()
+        }
     }
 }
 

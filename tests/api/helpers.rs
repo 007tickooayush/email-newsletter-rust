@@ -39,11 +39,6 @@ pub async fn spawn_app() -> TestApp {
     // Next invocations get skipped
     Lazy::force(&TRACING);
 
-    // // We are not using the port 9001 here, instead we are binding to a random port provided by OS
-    // let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    // let port = listener.local_addr().unwrap().port();
-    // let address = format!("http://127.0.0.1:{}", port);
-
     // Randomized the configuration to ensure test isolation
     let configuration = {
         // Create db connection using PgPool(Pool) implementation of sqlx
@@ -54,23 +49,9 @@ pub async fn spawn_app() -> TestApp {
         c
     };
 
-    // let db_pool = configure_database(&configuration.database).await;
-
-    // // Create a new `EmailClient` using the configuration
-    // let sender_email = configuration.email_client.sender()
-    //     .expect("Invalid Sender Email Address");
-    //
-    // let sender_name = configuration.email_client.sender_name()
-    //     .expect("Invalid Sender Name");
-    // let timeout = configuration.email_client.timeout();
-    // let email_client = EmailClient::new(
-    //     // using clone as the configuration object is partially moved
-    //     configuration.email_client.base_url.clone(),
-    //     sender_email,
-    //     sender_name,
-    //     configuration.email_client.authorization_token.clone(),
-    //     timeout
-    // );
+    // add the removed configure_database function
+    // this function will create a new database with the name
+    configure_database(&configuration.database).await;
 
     // Here we dont .await the call, instead run the process in the background using tokio::spawn function
     // and return the server handle

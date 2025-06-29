@@ -1,36 +1,26 @@
-use sqlx::{PgConnection, Connection, Executor};
+use sqlx::{PgConnection, Connection};
 use crate::helpers::spawn_app;
 
 #[tokio::test]
 async fn test_subscribe_returns_200_for_valid_data() {
-    let test_config = spawn_app().await;
 
-    // let configuration = get_configuration().expect("Failed to get Configuration!");
-    let configuration = test_config.configuration;
-    let db_conn = configuration.database.with_db();
-
-    // The "Connection" trait must be in scope to invoke
-    // `PgConnection::connect`
-    // it is not an inherent method of the struct
-    // hence we also need to import `Connection` trait from sqlx
-    let mut connection = PgConnection::connect_with(&db_conn)
-        .await
-        .expect("Failed to connect to Postgres");
-
+    // get the Application struct which includes the Connection Pool object, directly
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
-
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
     let response = client
-        .post(&format!("{}/subscriptions", &test_config.address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
+        .post(&format!("{}/subscriptions", &app.address))
+        .header("Content-type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
         .expect("Failed to execute request.");
+    
     assert_eq!(200, response.status().as_u16());
 
     let saved = sqlx::query!("SELECT email, name FROM subscriptions")
-        .fetch_one(&mut connection)
+        .fetch_one(&app.db_pool)// use the db_pool object directly from the app
         .await
         .expect("Failed to fetch saved subscription");
 
