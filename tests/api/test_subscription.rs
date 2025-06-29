@@ -9,14 +9,8 @@ async fn test_subscribe_returns_200_for_valid_data() {
     let client = reqwest::Client::new();
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
-    let response = client
-        .post(&format!("{}/subscriptions", &app.address))
-        .header("Content-type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect("Failed to execute request.");
-    
+    let response = app.post_subscriptions(body.into()).await;
+
     assert_eq!(200, response.status().as_u16());
 
     let saved = sqlx::query!("SELECT email, name FROM subscriptions")
@@ -30,8 +24,7 @@ async fn test_subscribe_returns_200_for_valid_data() {
 
 #[tokio::test]
 async fn test_subscribe_returns_400_when_fields_are_present_but_invalid() {
-    let address = spawn_app().await.address;
-    let client = reqwest::Client::new();
+    let app = spawn_app().await;
 
     let test_cases = vec![
         ("name=le%20guin%40gmail.com", "missing email"),
@@ -40,13 +33,7 @@ async fn test_subscribe_returns_400_when_fields_are_present_but_invalid() {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = client
-            .post(&format!("{}/subscriptions", address))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(invalid_body)
-            .send()
-            .await
-            .expect("Failed to execute request");
+        let response = app.post_subscriptions(invalid_body.into()).await;
 
         assert_eq!(
             400,

@@ -30,6 +30,22 @@ pub struct TestApp {
     pub configuration: Settings
 }
 
+impl TestApp {
+    /// Create a new subscriber by sending a POST request to the `/subscriptions` endpoint
+    pub async fn post_subscriptions(
+        &self,
+        body: String
+    ) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!("{}/subscriptions", &self.address))
+            .header("Content-type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+}
+
 
 /// Spin up the application in the background
 /// Return the address of the application i.e localhost:XXXX
