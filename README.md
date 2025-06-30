@@ -78,3 +78,8 @@ curl --location --request POST 'https://send.api.mailtrap.io/api/send' --header 
 ```bash
 sqlx migrate add add_status_to_subscriptions
 ```
+
+## Created Script for Non-nullable status column:
+```bash
+sqlx migrate add make_status_not_null_in_subscriptions
+```
