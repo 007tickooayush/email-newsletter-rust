@@ -63,3 +63,18 @@ curl --request POST \
 --data 'name=le%20guin&email=ursula_le_guin%40gmail.com' \
 http://localhost:9001/subscriptions --verbose
 ``` 
+
+## MailTrap API Demo Request:
+```bash
+curl --location --request POST 'https://send.api.mailtrap.io/api/send' --header 'Authorization: Bearer 1c28f6aff837d05f910a7d70402fe41d' --header 'Content-Type: application/json' --data-raw '{"from":{"email":"test@ayush-tickoo.in","name":"MailTrap Test"},"to":[{"email":"test@gmail.com"}],"subject":"Email from CEO","text":"Test Email Body","category":"MailTrap Test Category"}'
+```
+## MailTrap API Demo Response:
+```json
+{"success":true,"message_ids":["8b627ff0-52b2-11f0-0000-f1e8ba0efc25"]}
+```
+
+
+## Migrations Script for subscriptions table:
+```bash
+sqlx migrate add add_status_to_subscriptions
+```
