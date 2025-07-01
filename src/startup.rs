@@ -100,6 +100,8 @@ pub fn run(
             .route("/subscriptions", web::post().to(subscribe))
             // use `TracingLogger` provided by `tracing-actix-web` crate instead of `Logger` of actix_web crate
             .wrap(TracingLogger::default())
+            // Added email_client to application state/context
+            .app_data(email_client.clone())
             .app_data(connection.clone())
     })
         .listen(listener)?

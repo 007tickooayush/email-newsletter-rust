@@ -1,4 +1,6 @@
 use sqlx::{PgConnection, Connection};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 use crate::helpers::spawn_app;
 
 #[tokio::test]
@@ -8,6 +10,14 @@ async fn test_subscribe_returns_200_for_valid_data() {
     let app = spawn_app().await;
     let client = reqwest::Client::new();
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    // Test the subscription endpoint by sending a POST request
+    // This is required since the subscribe endpoint is updated to send a confirmation email
+    Mock::given(path("/api/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
 
     let response = app.post_subscriptions(body.into()).await;
 
@@ -42,5 +52,21 @@ async fn test_subscribe_returns_400_when_fields_are_present_but_invalid() {
             error_message
         );
     }
+}
+
+#[tokio::test]
+async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
+    let app = spawn_app().await;
+
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/api/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
 }
 

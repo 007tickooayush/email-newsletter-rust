@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
+use crate::email_client::EmailClient;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -27,7 +28,7 @@ impl TryFrom<FormData> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, connection),
+    skip(form, connection, email_client),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name
@@ -37,6 +38,8 @@ pub async fn subscribe(
     form: web::Form<FormData>,
     // Retrieving a connection from the application state!
     connection: web::Data<PgPool>,
+    // getting email_client instance from the application state
+    email_client: web::Data<EmailClient>
 ) -> HttpResponse {
 
     // This can also be written as `NewSubscriber::try_from(form.0)`
@@ -48,17 +51,23 @@ pub async fn subscribe(
             return HttpResponse::BadRequest().finish();
         }
     };
-    match insert_subscriber(&connection, &new_subscriber)
-        .await
-    {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => {
-            // Log the error and return an InternalServerError response
-            dbg!("new_subscriber: => Failed to insert new subscriber: {:?}", e);
-
-            HttpResponse::InternalServerError().finish()
-        }
+    if insert_subscriber(&connection, &new_subscriber).await.is_err() {
+        return HttpResponse::InternalServerError().finish();
     }
+
+    // Send a static email to the new subscriber
+    if email_client.send_email(
+        new_subscriber.email,
+        "Weclome!",
+        "Welcome to our newsletter!",
+        "welcome mail"
+    )
+        .await
+        .is_err() {
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    HttpResponse::Ok().finish()
 }
 
 #[tracing::instrument(
