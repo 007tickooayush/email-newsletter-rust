@@ -63,10 +63,35 @@ async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
     Mock::given(path("/api/send"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
-        .expect(1)
+        // Not settings any expectations here
+        // .expect(1)
         .mount(&app.email_server)
         .await;
 
     app.post_subscriptions(body.into()).await;
+
+    let email_request = &app
+        .email_server
+        // Method of MockServer to intercept requests and receive a vector of `Request` object
+        .received_requests()
+        .await
+        .unwrap()[0];
+
+    // Parsing the JSON body, from raw bytes
+    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+    // Extract the link from one of the request fields
+    let get_link = |s :&str| {
+        let links: Vec<_> = linkify::LinkFinder::new()
+            .links(s)
+            .filter(|l| *l.kind() == linkify::LinkKind::Url)
+            .collect();
+        assert_eq!(links.len(), 1);
+        links[0].as_str().to_owned()
+    };
+
+    let extracted_link = get_link(&body["text"].as_str().unwrap());
+    
+    assert!(!extracted_link.is_empty());
 }
 

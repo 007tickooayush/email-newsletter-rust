@@ -55,11 +55,17 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
+    // Added a static confirmation link
+    let confirmation_link = "https://my-api.com/subscriptions/confirm";
     // Send a static email to the new subscriber
     if email_client.send_email(
         new_subscriber.email,
         "Weclome!",
-        "Welcome to our newsletter!",
+        &format!(
+            "Welcome to our newsletter! <br/> \
+            Click <a href = \"{}\">here</a> to confirm your subscription",
+            confirmation_link
+        ),
         "welcome mail"
     )
         .await
