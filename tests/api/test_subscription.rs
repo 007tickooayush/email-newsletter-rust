@@ -4,11 +4,10 @@ use wiremock::{Mock, ResponseTemplate};
 use crate::helpers::spawn_app;
 
 #[tokio::test]
-async fn test_subscribe_returns_200_for_valid_data() {
+async fn test_subscribe_returns_200_for_valid_form_data() {
 
     // get the Application struct which includes the Connection Pool object, directly
     let app = spawn_app().await;
-    let client = reqwest::Client::new();
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     // Test the subscription endpoint by sending a POST request
@@ -22,14 +21,30 @@ async fn test_subscribe_returns_200_for_valid_data() {
     let response = app.post_subscriptions(body.into()).await;
 
     assert_eq!(200, response.status().as_u16());
+}
 
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+#[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+
+    // get the Application struct which includes the Connection Pool object, directly
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    Mock::given(path("/api/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
+
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions")
         .fetch_one(&app.db_pool)// use the db_pool object directly from the app
         .await
         .expect("Failed to fetch saved subscription");
 
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.status, "pending_confirmation");;
 }
 
 #[tokio::test]
@@ -91,7 +106,7 @@ async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
     };
 
     let extracted_link = get_link(&body["text"].as_str().unwrap());
-    
+
     assert!(!extracted_link.is_empty());
 }
 

@@ -55,25 +55,38 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    // Added a static confirmation link
-    let confirmation_link = "https://my-api.com/subscriptions/confirm";
-    // Send a static email to the new subscriber
-    if email_client.send_email(
-        new_subscriber.email,
-        "Weclome!",
-        &format!(
-            "Welcome to our newsletter! <br/> \
-            Click <a href = \"{}\">here</a> to confirm your subscription",
-            confirmation_link
-        ),
-        "welcome mail"
-    )
+    if send_confirmation_email(&email_client, new_subscriber)
         .await
         .is_err() {
-        return HttpResponse::InternalServerError().finish();
+        return  HttpResponse::InternalServerError().finish();
     }
 
     HttpResponse::Ok().finish()
+}
+
+#[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    skip(email_client, new_subscriber)
+)]
+pub async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: NewSubscriber
+) -> Result<(), reqwest::Error> {
+    // Added a static confirmation link
+    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    // Send a static email to the new subscriber
+    email_client
+        .send_email(
+            new_subscriber.email, 
+            "Weclome!", 
+            &format!(
+                "Welcome to our newsletter! <br/> \
+                Click <a href = \"{}\">here</a> to confirm your subscription",
+                confirmation_link
+            ),
+            "welcome mail"
+        )
+        .await
 }
 
 #[tracing::instrument(
