@@ -6,7 +6,7 @@ use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
 use crate::configuration::{get_configuration, DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::{health_check, subscribe};
+use crate::routes::{confirm, health_check, subscribe};
 use crate::telemetry::{get_subscriber, init_subscriber};
 
 /// A new type for the application server
@@ -98,6 +98,7 @@ pub fn run(
         App::new()
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/subscriptions/confirm", web::get().to(confirm))
             // use `TracingLogger` provided by `tracing-actix-web` crate instead of `Logger` of actix_web crate
             .wrap(TracingLogger::default())
             // Added email_client to application state/context
