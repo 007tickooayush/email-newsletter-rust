@@ -6,6 +6,7 @@ use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
 use crate::email_client::EmailClient;
+use crate::startup::ApplicationBaseUrl;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -28,7 +29,7 @@ impl TryFrom<FormData> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, connection, email_client),
+    skip(form, connection, email_client, base_url),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name
@@ -39,7 +40,9 @@ pub async fn subscribe(
     // Retrieving a connection from the application state!
     connection: web::Data<PgPool>,
     // getting email_client instance from the application state
-    email_client: web::Data<EmailClient>
+    email_client: web::Data<EmailClient>,
+    // application server base url
+    base_url: web::Data<ApplicationBaseUrl>
 ) -> HttpResponse {
 
     // This can also be written as `NewSubscriber::try_from(form.0)`
@@ -55,7 +58,11 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
+    if send_confirmation_email(
+        &email_client,
+        new_subscriber,
+        &base_url.0
+    )
         .await
         .is_err() {
         return  HttpResponse::InternalServerError().finish();
@@ -66,14 +73,15 @@ pub async fn subscribe(
 
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber)
+    skip(email_client, new_subscriber, base_url)
 )]
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
-    new_subscriber: NewSubscriber
+    new_subscriber: NewSubscriber,
+    base_url: &str
 ) -> Result<(), reqwest::Error> {
     // Added a static confirmation link
-    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    let confirmation_link = format!("{}/subscriptions/confirm", base_url);
     // Send a static email to the new subscriber
     email_client
         .send_email(
@@ -96,6 +104,7 @@ pub async fn send_confirmation_email(
 pub async fn insert_subscriber(
     connection_pool: &PgPool,
     new_subscriber: &crate::domain::new_subscriber::NewSubscriber,
+
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"

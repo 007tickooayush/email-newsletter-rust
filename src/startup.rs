@@ -1,6 +1,7 @@
 use std::net::TcpListener;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use actix_web::web::Data;
 use sqlx::{PgPool};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
@@ -50,7 +51,12 @@ impl Application {
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr()?.port();
         // Storing the actix::Server object
-        let server = run(listener, connection, email_client)?;
+        let server = run(
+            listener,
+            connection,
+            email_client,
+            configuration.application.base_url
+        )?;
 
         // Save the port in the Application's port attribute
         Ok( Self {
@@ -80,10 +86,19 @@ pub fn get_connection_pool(
         .connect_lazy_with(configuration.with_db())
 }
 
+
+// We need to define a wrapper type in order to retrieve the URL
+// in the `subscribe` handler.
+// Retrieval from the context, in actix-web, is type-based: using
+// a raw `String` would expose us to conflicts.
+pub struct ApplicationBaseUrl(pub String);
+
+
 pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    email_client: EmailClient
+    email_client: EmailClient,
+    base_url: String
 ) -> Result<Server, std::io::Error> {
 
     // using web::Data to wrap the connection in smart pointer(Arc)
@@ -93,6 +108,8 @@ pub fn run(
 
     // Wrap the email client in web::Data to share it across requests
     let email_client = web::Data::new(email_client);
+
+    let base_url = Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
         App::new()
@@ -104,6 +121,7 @@ pub fn run(
             // Added email_client to application state/context
             .app_data(email_client.clone())
             .app_data(connection.clone())
+            .app_data(base_url.clone())
     })
         .listen(listener)?
         .run();
