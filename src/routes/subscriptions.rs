@@ -81,7 +81,10 @@ pub async fn send_confirmation_email(
     base_url: &str
 ) -> Result<(), reqwest::Error> {
     // Added a static confirmation link
-    let confirmation_link = format!("{}/subscriptions/confirm", base_url);
+    let confirmation_link = format!(
+        "{}/subscriptions/confirm?subscription_token=static_token", 
+        base_url
+    );
     // Send a static email to the new subscriber
     email_client
         .send_email(
