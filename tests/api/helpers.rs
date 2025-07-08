@@ -25,6 +25,12 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     }
 });
 
+/// This is implementation according to the MailTrap API not PostMark API
+/// hence instead of using html and text field we only utilize a single `link` field
+pub struct ConfirmationLink {
+    pub link: reqwest::Url
+}
+
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
@@ -47,6 +53,31 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub fn get_confirmation_link(&self, email_request:&wiremock::Request) -> ConfirmationLink {
+        let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+        let get_link = |s: &str| {
+            let links: Vec<_> = linkify::LinkFinder::new()
+                .links(s)
+                .filter(|l| *l.kind() == linkify::LinkKind::Url)
+                .collect();
+            assert_eq!(links.len(), 1);
+
+            let raw_link = links[0].as_str().to_owned();
+            let mut confirmation_link = reqwest::Url::parse(&raw_link).unwrap();
+
+            // Enforce localhost call on server
+            assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
+            confirmation_link.set_port(Some(self.port)).unwrap();
+            confirmation_link
+        };
+
+        let link = get_link(&body["text"].as_str().unwrap());
+        ConfirmationLink {
+            link
+        }
+    }
 }
 
 
@@ -68,7 +99,7 @@ pub async fn spawn_app() -> TestApp {
         let mut c = get_configuration().expect("Failed to get Configuration in spawn_app");
         c.database.database_name = Uuid::new_v4().to_string();
         c.application.port = 0;
-        
+
         // Use the mock server's URI as the base URL for the email client
         c.email_client.base_url = email_server.uri();
         c

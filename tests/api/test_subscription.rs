@@ -91,22 +91,8 @@ async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
         .received_requests()
         .await
         .unwrap()[0];
+    let confirmation_link = app.get_confirmation_link(&email_request).link;
 
-    // Parsing the JSON body, from raw bytes
-    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
-
-    // Extract the link from one of the request fields
-    let get_link = |s :&str| {
-        let links: Vec<_> = linkify::LinkFinder::new()
-            .links(s)
-            .filter(|l| *l.kind() == linkify::LinkKind::Url)
-            .collect();
-        assert_eq!(links.len(), 1);
-        links[0].as_str().to_owned()
-    };
-
-    let extracted_link = get_link(&body["text"].as_str().unwrap());
-
-    assert!(!extracted_link.is_empty());
+    assert!(!confirmation_link.host_str().unwrap().is_empty());
 }
 

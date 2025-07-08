@@ -61,7 +61,8 @@ pub async fn subscribe(
     if send_confirmation_email(
         &email_client,
         new_subscriber,
-        &base_url.0
+        &base_url.0,
+        "static_token" // moved the static token
     )
         .await
         .is_err() {
@@ -73,17 +74,19 @@ pub async fn subscribe(
 
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber, base_url)
+    skip(email_client, new_subscriber, base_url, subscription_token)
 )]
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
-    base_url: &str
+    base_url: &str,
+    subscription_token: &str
 ) -> Result<(), reqwest::Error> {
     // Added a static confirmation link
     let confirmation_link = format!(
-        "{}/subscriptions/confirm?subscription_token=static_token", 
-        base_url
+        "{}/subscriptions/confirm?subscription_token={}",
+        base_url,
+        subscription_token
     );
     // Send a static email to the new subscriber
     email_client
