@@ -1,5 +1,7 @@
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::domain::new_subscriber::NewSubscriber;
@@ -131,4 +133,16 @@ pub async fn insert_subscriber(
             // return sqlx::error
         })?;
     Ok(())
+}
+
+/// using `rand` package's `std_rng` feature to generate a
+/// "CryptoGraphically Secure Pseudo Number Generator" to generate subscription tokens
+///
+/// Generate a 25-character-long case-sensitive subscription token
+fn generate_subscription_token() -> String {
+    let mut rng = thread_rng();
+    std::iter::repeat_with(|| rng.sample(Alphanumeric))
+        .map(char::from)
+        .take(25)
+        .collect()
 }
