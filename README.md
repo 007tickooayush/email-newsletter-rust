@@ -66,7 +66,7 @@ http://localhost:9001/subscriptions --verbose
 
 ## MailTrap API Demo Request:
 ```bash
-curl --location --request POST 'https://send.api.mailtrap.io/api/send' --header 'Authorization: Bearer 1c28f6aff837d05f910a7d70402fe41d' --header 'Content-Type: application/json' --data-raw '{"from":{"email":"test@ayush-tickoo.in","name":"MailTrap Test"},"to":[{"email":"test@gmail.com"}],"subject":"Email from CEO","text":"Test Email Body","category":"MailTrap Test Category"}'
+curl --location --request POST 'https://send.api.mailtrap.io/api/send' --header 'Authorization: Bearer <subscription_token>' --header 'Content-Type: application/json' --data-raw '{"from":{"email":"test@ayush-tickoo.in","name":"MailTrap Test"},"to":[{"email":"test@gmail.com"}],"subject":"Email from CEO","text":"Test Email Body","category":"MailTrap Test Category"}'
 ```
 ## MailTrap API Demo Response:
 ```json
