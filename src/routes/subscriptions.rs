@@ -56,7 +56,16 @@ pub async fn subscribe(
             return HttpResponse::BadRequest().finish();
         }
     };
-    if insert_subscriber(&connection, &new_subscriber).await.is_err() {
+    let subscription_id = match  insert_subscriber(&connection, &new_subscriber).await {
+        Ok(subscriber_id) => subscriber_id,
+        Err(_) => return HttpResponse::InternalServerError().finish()
+    };
+
+    // Get the new generated subscription token
+    let subscription_token = generate_subscription_token();
+    if store_token(&connection, subscription_id, &subscription_token)
+        .await
+        .is_err() {
         return HttpResponse::InternalServerError().finish();
     }
 
@@ -64,7 +73,7 @@ pub async fn subscribe(
         &email_client,
         new_subscriber,
         &base_url.0,
-        "static_token" // moved the static token
+        &subscription_token // dynamic token assignment
     )
         .await
         .is_err() {
@@ -113,13 +122,14 @@ pub async fn insert_subscriber(
     connection_pool: &PgPool,
     new_subscriber: &crate::domain::new_subscriber::NewSubscriber,
 
-) -> Result<(), sqlx::Error> {
+) -> Result<Uuid, sqlx::Error> {
+    let subscriber_id = Uuid::new_v4();
     sqlx::query!(
         r#"
             INSERT INTO subscriptions (id, email, name, subscribed_at, status)
             VALUES ($1, $2, $3, $4, 'confirmed')
         "#,
-        Uuid::new_v4(),
+        subscriber_id,
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now()
@@ -132,7 +142,7 @@ pub async fn insert_subscriber(
             // Using the ? operator to return early and propagate the error
             // return sqlx::error
         })?;
-    Ok(())
+    Ok(subscriber_id)
 }
 
 /// using `rand` package's `std_rng` feature to generate a
@@ -145,4 +155,29 @@ fn generate_subscription_token() -> String {
         .map(char::from)
         .take(25)
         .collect()
+}
+
+#[tracing::instrument(
+    name = "Store the generated token in the database",
+    skip()
+)]
+pub async fn store_token(
+    db_pool: &PgPool,
+    subscriber_id: Uuid,
+    subscription_token: &str,
+) -> Result<(), sqlx::Error> {
+    let result = sqlx::query!(r#"
+    INSERT INTO subscription_tokens (subscription_token, subscription_id) VALUES ($1, $2)
+    "#,
+        subscription_token,
+        subscriber_id
+    )
+        .fetch_optional(db_pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute `storage_token` query: {:?}", e);
+           e
+        })?;
+
+    Ok(())
 }
