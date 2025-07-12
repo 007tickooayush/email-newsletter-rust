@@ -57,7 +57,7 @@ pub async fn subscribe(
         }
     };
     let subscription_id = match  insert_subscriber(&connection, &new_subscriber).await {
-        Ok(subscriber_id) => subscriber_id,
+        Ok(subscription_id) => subscription_id,
         Err(_) => return HttpResponse::InternalServerError().finish()
     };
 
@@ -127,8 +127,8 @@ pub async fn insert_subscriber(
     sqlx::query!(
         r#"
             INSERT INTO subscriptions (id, email, name, subscribed_at, status)
-            VALUES ($1, $2, $3, $4, 'confirmed')
-        "#,
+            VALUES ($1, $2, $3, $4, 'pending_confirmation')
+        "#, // default status is kept as pending_confirmation
         subscriber_id,
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
