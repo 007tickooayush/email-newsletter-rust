@@ -2,7 +2,7 @@ use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
@@ -47,6 +47,11 @@ pub async fn subscribe(
     base_url: web::Data<ApplicationBaseUrl>
 ) -> HttpResponse {
 
+    let mut transaction = match connection.begin().await {
+        Ok(transaction) => transaction,
+        Err(_) => return HttpResponse::InternalServerError().finish()
+    };
+
     // This can also be written as `NewSubscriber::try_from(form.0)`
     // The try_into(TryInto) implementation is provided for free by the `TryFrom` trait
     let new_subscriber = match form.0.try_into() {
@@ -56,14 +61,14 @@ pub async fn subscribe(
             return HttpResponse::BadRequest().finish();
         }
     };
-    let subscription_id = match  insert_subscriber(&connection, &new_subscriber).await {
+    let subscription_id = match  insert_subscriber(&mut transaction, &new_subscriber).await {
         Ok(subscription_id) => subscription_id,
         Err(_) => return HttpResponse::InternalServerError().finish()
     };
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
-    if store_token(&connection, subscription_id, &subscription_token)
+    if store_token(&mut transaction, subscription_id, &subscription_token)
         .await
         .is_err() {
         return HttpResponse::InternalServerError().finish();
@@ -78,6 +83,10 @@ pub async fn subscribe(
         .await
         .is_err() {
         return  HttpResponse::InternalServerError().finish();
+    }
+
+    if transaction.commit().await.is_err() {
+        return HttpResponse::InternalServerError().finish();
     }
 
     HttpResponse::Ok().finish()
@@ -116,10 +125,10 @@ pub async fn send_confirmation_email(
 
 #[tracing::instrument(
     name = "Inserting new subscriber",
-    skip(new_subscriber, connection_pool),
+    skip(new_subscriber, transaction),
 )]
 pub async fn insert_subscriber(
-    connection_pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     new_subscriber: &crate::domain::new_subscriber::NewSubscriber,
 
 ) -> Result<Uuid, sqlx::Error> {
@@ -134,7 +143,7 @@ pub async fn insert_subscriber(
         new_subscriber.name.as_ref(),
         Utc::now()
     )
-        .execute(connection_pool)
+        .execute(transaction)
         .await
         .map_err(|e| {
             tracing::error!(" sqlx::Error::QueryBuilderError : {:?}", e);
@@ -159,20 +168,20 @@ fn generate_subscription_token() -> String {
 
 #[tracing::instrument(
     name = "Store the generated token in the database",
-    skip()
+    skip(transaction, subscription_token)
 )]
 pub async fn store_token(
-    db_pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &str,
 ) -> Result<(), sqlx::Error> {
-    let result = sqlx::query!(r#"
+    sqlx::query!(r#"
     INSERT INTO subscription_tokens (subscription_token, subscription_id) VALUES ($1, $2)
     "#,
         subscription_token,
         subscriber_id
     )
-        .fetch_optional(db_pool)
+        .execute(transaction)
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute `storage_token` query: {:?}", e);
