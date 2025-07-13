@@ -1,4 +1,3 @@
-use sqlx::{PgConnection, Connection};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 use crate::helpers::spawn_app;
@@ -8,7 +7,7 @@ async fn test_subscribe_returns_200_for_valid_form_data() {
 
     // get the Application struct which includes the Connection Pool object, directly
     let app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let body = "name=honda%20davidson&email=honda_davidson%40gmail.com";
 
     // Test the subscription endpoint by sending a POST request
     // This is required since the subscribe endpoint is updated to send a confirmation email
@@ -28,7 +27,7 @@ async fn subscribe_persists_the_new_subscriber() {
 
     // get the Application struct which includes the Connection Pool object, directly
     let app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let body = "name=honda%20davidson&email=honda_davidson%40gmail.com";
     Mock::given(path("/api/send"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
@@ -42,8 +41,8 @@ async fn subscribe_persists_the_new_subscriber() {
         .await
         .expect("Failed to fetch saved subscription");
 
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.email, "honda_davidson@gmail.com");
+    assert_eq!(saved.name, "honda davidson");
     assert_eq!(saved.status, "pending_confirmation");;
 }
 
@@ -73,7 +72,7 @@ async fn test_subscribe_returns_400_when_fields_are_present_but_invalid() {
 async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
     let app = spawn_app().await;
 
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let body = "name=honda%20davidson&email=honda_davidson%40gmail.com";
 
     Mock::given(path("/api/send"))
         .and(method("POST"))
@@ -96,3 +95,24 @@ async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
     assert!(!confirmation_link.host_str().unwrap().is_empty());
 }
 
+/// # sqlx logs are a bit spammy, cutting them out to reduce noise
+/// export RUST_LOG="sqlx=error,info"<br/>
+/// export TEST_LOG=enabled<br/>
+/// cargo test --package email-newsletter-rust --test api test_subscription::test_subscribe_fails_if_there_is_a_fatal_database_error -- --exact | bunyan
+#[tokio::test]
+async fn test_subscribe_fails_if_there_is_a_fatal_database_error() {
+    let app = spawn_app().await;
+    let body = "name=honda%20davidson&email=honda_davidson%40gmail.com";
+
+    // Sabotage the database
+    sqlx::query!(
+        "ALTER TABLE subscription_tokens DROP COLUMN subscription_token"
+    )
+        .execute(&app.db_pool)
+        .await
+        .unwrap();
+
+    let response = app.post_subscriptions(body.into()).await;
+
+    assert_eq!(response.status().as_u16(), 500);
+}
