@@ -1,4 +1,6 @@
-use actix_web::{web, HttpResponse};
+use std::fmt::Formatter;
+use actix_web::{web, HttpResponse, ResponseError};
+use actix_web::body::BoxBody;
 use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -45,11 +47,11 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     // application server base url
     base_url: web::Data<ApplicationBaseUrl>
-) -> HttpResponse {
+) -> Result<HttpResponse, actix_web::Error> {
 
     let mut transaction = match connection.begin().await {
         Ok(transaction) => transaction,
-        Err(_) => return HttpResponse::InternalServerError().finish()
+        Err(_) => return Ok(HttpResponse::InternalServerError().finish())
     };
 
     // This can also be written as `NewSubscriber::try_from(form.0)`
@@ -58,21 +60,21 @@ pub async fn subscribe(
         Ok(subscriber) => subscriber,
         Err(_) => {
             // If the subscriber data is invalid, we return a BadRequest response
-            return HttpResponse::BadRequest().finish();
+            return Ok(HttpResponse::BadRequest().finish());
         }
     };
     let subscription_id = match  insert_subscriber(&mut transaction, &new_subscriber).await {
         Ok(subscription_id) => subscription_id,
-        Err(_) => return HttpResponse::InternalServerError().finish()
+        Err(_) => return Ok(HttpResponse::InternalServerError().finish())
     };
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
-    if store_token(&mut transaction, subscription_id, &subscription_token)
-        .await
-        .is_err() {
-        return HttpResponse::InternalServerError().finish();
-    }
+    store_token(
+        &mut transaction,
+        subscription_id,
+        &subscription_token
+    ).await?;
 
     if send_confirmation_email(
         &email_client,
@@ -82,14 +84,14 @@ pub async fn subscribe(
     )
         .await
         .is_err() {
-        return  HttpResponse::InternalServerError().finish();
+        return  Ok(HttpResponse::InternalServerError().finish());
     }
 
     if transaction.commit().await.is_err() {
-        return HttpResponse::InternalServerError().finish();
+        return Ok(HttpResponse::InternalServerError().finish());
     }
 
-    HttpResponse::Ok().finish()
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[tracing::instrument(
@@ -111,8 +113,8 @@ pub async fn send_confirmation_email(
     // Send a static email to the new subscriber
     email_client
         .send_email(
-            new_subscriber.email, 
-            "Weclome!", 
+            new_subscriber.email,
+            "Weclome!",
             &format!(
                 "Welcome to our newsletter! <br/> \
                 Click <a href = \"{}\">here</a> to confirm your subscription",
@@ -174,7 +176,7 @@ pub async fn store_token(
     transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &str,
-) -> Result<(), sqlx::Error> {
+) -> Result<(), StoreTokenError> {
     sqlx::query!(r#"
     INSERT INTO subscription_tokens (subscription_token, subscription_id) VALUES ($1, $2)
     "#,
@@ -185,8 +187,32 @@ pub async fn store_token(
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute `storage_token` query: {:?}", e);
-           e
+            StoreTokenError(e)
         })?;
 
     Ok(())
+}
+
+/// A new error type for wrapping `sqlx::Error`
+/// because due to the "Oprhan Rule" in Rust we can not directly implement the `ResponseError`
+/// for `sqlx::Error`.
+///
+/// ResponseError is utilixrd to provide better information regarding the errors propogating from
+/// the database queries to utility functions and ending at API endpoint handlers
+#[derive(Debug)]
+pub struct StoreTokenError(sqlx::Error);
+
+impl ResponseError for StoreTokenError {
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        HttpResponse::InternalServerError().body(self.to_string())
+    }
+}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error occured while trying to store a subscription token"
+        )
+    }
 }
