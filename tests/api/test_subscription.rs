@@ -98,6 +98,7 @@ async fn test_subscribe_sends_a_confirmation_email_for_valid_data() {
 /// # sqlx logs are a bit spammy, cutting them out to reduce noise
 /// export RUST_LOG="sqlx=error,info"<br/>
 /// export TEST_LOG=enabled<br/>
+/// run `cargo install bunyan` before the test for getting more accuracy
 /// cargo test --package email-newsletter-rust --test api test_subscription::test_subscribe_fails_if_there_is_a_fatal_database_error -- --exact | bunyan
 #[tokio::test]
 async fn test_subscribe_fails_if_there_is_a_fatal_database_error() {

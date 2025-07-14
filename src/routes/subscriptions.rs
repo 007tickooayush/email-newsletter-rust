@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt::Formatter;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
@@ -199,12 +200,18 @@ pub async fn store_token(
 ///
 /// ResponseError is utilixrd to provide better information regarding the errors propogating from
 /// the database queries to utility functions and ending at API endpoint handlers
-#[derive(Debug)]
+// #[derive(Debug)] // removed the default Debug implementation provided by rust
 pub struct StoreTokenError(sqlx::Error);
 
 impl ResponseError for StoreTokenError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
         HttpResponse::InternalServerError().body(self.to_string())
+    }
+}
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\nCaused By:\n\t{}", self, self.0)
     }
 }
 
@@ -215,4 +222,24 @@ impl std::fmt::Display for StoreTokenError {
             "A database error occured while trying to store a subscription token"
         )
     }
+}
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>
+) -> std::fmt::Result {
+    writeln!(f,"{}\n",e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
 }
