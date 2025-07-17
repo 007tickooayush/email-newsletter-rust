@@ -177,7 +177,7 @@ pub async fn store_token(
     transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &str,
-) -> Result<(), StoreTokenError> {
+) -> Result<(), sqlx::Error> {
     sqlx::query!(r#"
     INSERT INTO subscription_tokens (subscription_token, subscription_id) VALUES ($1, $2)
     "#,
@@ -188,58 +188,24 @@ pub async fn store_token(
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute `storage_token` query: {:?}", e);
-            StoreTokenError(e)
+            e
         })?;
 
     Ok(())
 }
 
-/// A new error type for wrapping `sqlx::Error`
-/// because due to the "Oprhan Rule" in Rust we can not directly implement the `ResponseError`
-/// for `sqlx::Error`.
-///
-/// ResponseError is utilixrd to provide better information regarding the errors propogating from
-/// the database queries to utility functions and ending at API endpoint handlers
-// #[derive(Debug)] // removed the default Debug implementation provided by rust
-pub struct StoreTokenError(sqlx::Error);
+/// new error type for handling errors with the understanding of HTTP protocol
+#[derive(Debug)]
+struct SubscriberError {}
 
-impl ResponseError for StoreTokenError {
-    fn error_response(&self) -> HttpResponse<BoxBody> {
-        HttpResponse::InternalServerError().body(self.to_string())
-    }
-}
-
-impl std::fmt::Debug for StoreTokenError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}\nCaused By:\n\t{}", self, self.0)
-    }
-}
-
-impl std::fmt::Display for StoreTokenError {
+impl std::fmt::Display for SubscriberError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "A database error occured while trying to store a subscription token"
+            "Failed to create new subscriber"
         )
     }
 }
+impl std::error::Error for SubscriberError {}
 
-impl std::error::Error for StoreTokenError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(&self.0)
-    }
-}
-
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>
-) -> std::fmt::Result {
-    writeln!(f,"{}\n",e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}
+impl ResponseError for SubscriberError {}
