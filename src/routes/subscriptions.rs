@@ -1,7 +1,7 @@
 use std::error::Error;
-use std::fmt::Formatter;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
+use actix_web::http::StatusCode;
 use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -48,7 +48,7 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     // application server base url
     base_url: web::Data<ApplicationBaseUrl>
-) -> Result<HttpResponse, actix_web::Error> {
+) -> Result<HttpResponse, SubscribeError> {
 
     let mut transaction = match connection.begin().await {
         Ok(transaction) => transaction,
@@ -64,10 +64,7 @@ pub async fn subscribe(
             return Ok(HttpResponse::BadRequest().finish());
         }
     };
-    let subscription_id = match  insert_subscriber(&mut transaction, &new_subscriber).await {
-        Ok(subscription_id) => subscription_id,
-        Err(_) => return Ok(HttpResponse::InternalServerError().finish())
-    };
+    let subscription_id = insert_subscriber(&mut transaction, &new_subscriber).await?;
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
@@ -77,20 +74,14 @@ pub async fn subscribe(
         &subscription_token
     ).await?;
 
-    if send_confirmation_email(
+    send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token // dynamic token assignment
-    )
-        .await
-        .is_err() {
-        return  Ok(HttpResponse::InternalServerError().finish());
-    }
+    ).await?;
 
-    if transaction.commit().await.is_err() {
-        return Ok(HttpResponse::InternalServerError().finish());
-    }
+    transaction.commit().await?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -194,18 +185,130 @@ pub async fn store_token(
     Ok(())
 }
 
-/// new error type for handling errors with the understanding of HTTP protocol
-#[derive(Debug)]
-struct SubscriberError {}
+/// A new error type for wrapping `sqlx::Error`
+/// because due to the "Oprhan Rule" in Rust we can not directly implement the `ResponseError`
+/// for `sqlx::Error`.
+///
+/// ResponseError is utilixrd to provide better information regarding the errors propogating from
+/// the database queries to utility functions and ending at API endpoint handlers
+// #[derive(Debug)] // removed the default Debug implementation provided by rust
+pub struct StoreTokenError(sqlx::Error);
 
-impl std::fmt::Display for SubscriberError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl ResponseError for StoreTokenError {
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        HttpResponse::InternalServerError().body(self.to_string())
+    }
+}
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\nCaused By:\n\t{}", self, self.0)
+    }
+}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Failed to create new subscriber"
+            "A database error occurred while trying to store a subscription token"
         )
     }
 }
-impl std::error::Error for SubscriberError {}
 
-impl ResponseError for SubscriberError {}
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>
+) -> std::fmt::Result {
+    writeln!(f,"{}\n",e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
+}
+
+
+/// new error type for handling errors with the understanding of HTTP protocol
+pub enum SubscribeError {
+    ValidationError(String),
+    DatabaseError(sqlx::Error),
+    StoreTokenError(StoreTokenError),
+    SendEmailError(reqwest::Error)
+}
+
+
+impl From<sqlx::Error> for SubscribeError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::DatabaseError(err)
+    }
+}
+
+impl From<reqwest::Error> for SubscribeError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::SendEmailError(err)
+    }
+}
+
+impl From<StoreTokenError> for SubscribeError {
+    fn from(err: StoreTokenError) -> Self {
+        Self::StoreTokenError(err)
+    }
+}
+
+impl From<String> for SubscribeError {
+    fn from(err: String) -> Self {
+        Self::ValidationError(err)
+    }
+}
+
+impl std::fmt::Display for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SubscribeError::ValidationError(err) => write!(f, "{}", err),
+            // Pending Formatter for DatabaseError
+            SubscribeError::DatabaseError(err) => write!(f, "!!EMPTY DatabaseError!!"),
+            SubscribeError::StoreTokenError(err) => write!(f,
+            "Failed to store the confirmation token for a new subscriber"
+            ),
+            SubscribeError::SendEmailError(_) => write!(f, "Failed to send the confirmation email")
+        }
+    }
+}
+
+impl std::fmt::Debug for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self,f)
+    }
+}
+
+impl std::error::Error for SubscribeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            // &str does not implement `Error` - hence it is considered the root cause
+            SubscribeError::ValidationError(_) => None,
+            SubscribeError::DatabaseError(err) => Some(err),
+            SubscribeError::StoreTokenError(err) => Some(err),
+            SubscribeError::SendEmailError(err) => Some(err),
+        }
+    }
+}
+
+
+impl ResponseError for SubscribeError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            SubscribeError::DatabaseError(_)
+            | SubscribeError::StoreTokenError(_)
+            | SubscribeError::SendEmailError(_) => StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
