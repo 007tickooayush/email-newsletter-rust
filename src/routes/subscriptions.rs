@@ -245,85 +245,30 @@ fn error_chain_fmt(
 
 
 /// new error type for handling errors with the understanding of HTTP protocol
+/// implementing the error handling using `thiserror` package
+///
+/// `thiserror` removes the requirement of boilerplate code for error handling
+#[derive(thiserror::Error)]
 pub enum SubscribeError {
+    #[error("{0}")]
     ValidationError(String),
     // DatabaseError(sqlx::Error), // removed and replaced with more accurate errors
+    #[error("Failed to store the confirmation token for a new subscriber")]
     StoreTokenError(StoreTokenError),
+    #[error("Failed to send the confirmation email")]
     SendEmailError(reqwest::Error),
+    #[error("Failed to acquire a Postgres Database Connection from the Pool")]
     PoolError(sqlx::Error),
+    #[error("Failed to insert a new subscriber into the database")]
     InsertSubscriberError(sqlx::Error),
-    TransactionCommitError(sqlx::Error)
-
+    #[error("Failed to commit SQL transaction to store a new subscriber")]
+    TransactionCommitError(sqlx::Error),
 }
-
-
-// impl From<sqlx::Error> for SubscribeError {
-//     fn from(err: sqlx::Error) -> Self {
-//         Self::DatabaseError(err)
-//     }
-// }
-
-impl From<reqwest::Error> for SubscribeError {
-    fn from(err: reqwest::Error) -> Self {
-        Self::SendEmailError(err)
-    }
-}
-
-impl From<StoreTokenError> for SubscribeError {
-    fn from(err: StoreTokenError) -> Self {
-        Self::StoreTokenError(err)
-    }
-}
-
-impl From<String> for SubscribeError {
-    fn from(err: String) -> Self {
-        Self::ValidationError(err)
-    }
-}
-
-impl std::fmt::Display for SubscribeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SubscribeError::ValidationError(err) => write!(f, "{}", err),
-            SubscribeError::StoreTokenError(err) => write!(f,
-            "Failed to store the confirmation token for a new subscriber"
-            ),
-            SubscribeError::SendEmailError(_) => write!(f, "Failed to send the confirmation email"),
-            SubscribeError::PoolError(_) => write!(
-                f,
-                "Failed to acquire a Postgres Database Connection from the Pool"
-            ),
-            SubscribeError::InsertSubscriberError(_) => write!(
-                f,
-                "Failed to insert a new subscriber into the database"
-            ),
-            SubscribeError::TransactionCommitError(_) => {
-                write!(f, "Failed to commit SQL transaction to store a new subscriber")
-            }
-        }
-    }
-}
-
 impl std::fmt::Debug for SubscribeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self,f)
     }
 }
-
-impl std::error::Error for SubscribeError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            // &str does not implement `Error` - hence it is considered the root cause
-            SubscribeError::ValidationError(_) => None,
-            SubscribeError::StoreTokenError(err) => Some(err),
-            SubscribeError::SendEmailError(err) => Some(err),
-            SubscribeError::PoolError(err) => Some(err),
-            SubscribeError::InsertSubscriberError(err) => Some(err),
-            SubscribeError::TransactionCommitError(err) => Some(err)
-        }
-    }
-}
-
 
 impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {

@@ -36,6 +36,7 @@ validator = "0.14.0"
 quickcheck= "0.9.2"
 quickcheck_macros = "0.9.1"
 rand = { version = "0.8.0", features = ["std_rng"] }
+thiserror = "1.0.69"
 
 [dependencies.sqlx]
 version = "0.5.7"
