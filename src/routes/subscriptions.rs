@@ -53,22 +53,20 @@ pub async fn subscribe(
     let mut transaction = connection
         .begin()
         .await
-        .map_err(SubscribeError::PoolError)?;
+            .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     // This can also be written as `NewSubscriber::try_from(form.0)`
     // The try_into(TryInto) implementation is provided for free by the `TryFrom` trait
-    let new_subscriber = match form.0.try_into() {
-        Ok(subscriber) => subscriber,
-        Err(_) => {
-            // If the subscriber data is invalid, we return a BadRequest response
-            return Ok(HttpResponse::BadRequest().finish());
-        }
-    };
+    let new_subscriber = form
+        .0
+        .try_into()
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+
     let subscription_id = insert_subscriber(
         &mut transaction,
         &new_subscriber
     ).await
-        .map_err(SubscribeError::InsertSubscriberError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
@@ -77,19 +75,20 @@ pub async fn subscribe(
         subscription_id,
         &subscription_token
     ).await
-        .unwrap();
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token // dynamic token assignment
-    ).await?;
+    ).await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;;
 
     transaction
         .commit()
         .await
-        .map_err(SubscribeError::TransactionCommitError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -252,17 +251,10 @@ fn error_chain_fmt(
 pub enum SubscribeError {
     #[error("{0}")]
     ValidationError(String),
-    // DatabaseError(sqlx::Error), // removed and replaced with more accurate errors
-    #[error("Failed to store the confirmation token for a new subscriber")]
-    StoreTokenError(StoreTokenError),
-    #[error("Failed to send the confirmation email")]
-    SendEmailError(reqwest::Error),
-    #[error("Failed to acquire a Postgres Database Connection from the Pool")]
-    PoolError(sqlx::Error),
-    #[error("Failed to insert a new subscriber into the database")]
-    InsertSubscriberError(sqlx::Error),
-    #[error("Failed to commit SQL transaction to store a new subscriber")]
-    TransactionCommitError(sqlx::Error),
+    // Transparent delegates both `Display`'s and `source`'s implementation
+    // to the type wrapped by `UnexpectedError`.
+    #[error(transparent)]
+    UnexpectedError(#[from] Box<dyn std::error::Error>)
 }
 impl std::fmt::Debug for SubscribeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -274,11 +266,7 @@ impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
         match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscribeError::PoolError(_)
-            | SubscribeError::InsertSubscriberError(_)
-            | SubscribeError::TransactionCommitError(_)
-            | SubscribeError::StoreTokenError(_)
-            | SubscribeError::SendEmailError(_) => StatusCode::INTERNAL_SERVER_ERROR
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
