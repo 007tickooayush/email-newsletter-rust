@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fmt::{Display, Formatter};
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
@@ -50,23 +51,30 @@ pub async fn subscribe(
     base_url: web::Data<ApplicationBaseUrl>
 ) -> Result<HttpResponse, SubscribeError> {
 
+    // This can also be written as `NewSubscriber::try_from(form.0)`
+    // The try_into(TryInto) implementation is provided for free by the `TryFrom` trait
+    let new_subscriber = form.0.try_into().map_err(SubscribeError::ValidationError)?;
+
     let mut transaction = connection
         .begin()
         .await
-            .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
-
-    // This can also be written as `NewSubscriber::try_from(form.0)`
-    // The try_into(TryInto) implementation is provided for free by the `TryFrom` trait
-    let new_subscriber = form
-        .0
-        .try_into()
-        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+        .map_err(|e|
+            SubscribeError::UnexpectedError(
+                Box::new(e),
+                "Failed to acquire Database Connection From the pool".into()
+            )
+        )?;
 
     let subscription_id = insert_subscriber(
         &mut transaction,
         &new_subscriber
     ).await
-        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+        .map_err(|e|
+            SubscribeError::UnexpectedError(
+                Box::new(e),
+                "Failed to add new subscriber into the database".into()
+            )
+        )?;
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
@@ -75,20 +83,37 @@ pub async fn subscribe(
         subscription_id,
         &subscription_token
     ).await
-        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+        .map_err(|e|
+            SubscribeError::UnexpectedError(
+                Box::new(e),
+                "Failed to store new subscriber token into the database".into()
+            )
+        )?;
+
+
+    transaction
+        .commit()
+        .await
+        .map_err(|e|
+            SubscribeError::UnexpectedError(
+                Box::new(e),
+                "Failed to commit the SQL transaction to store a new subscriber".into()
+            )
+        )?;
 
     send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token // dynamic token assignment
-    ).await
-        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;;
-
-    transaction
-        .commit()
+    )
         .await
-        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+        .map_err(|e|
+            SubscribeError::UnexpectedError(
+                Box::new(e),
+                "Failed to send confirmation email".into()
+            )
+        )?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -253,8 +278,8 @@ pub enum SubscribeError {
     ValidationError(String),
     // Transparent delegates both `Display`'s and `source`'s implementation
     // to the type wrapped by `UnexpectedError`.
-    #[error(transparent)]
-    UnexpectedError(#[from] Box<dyn std::error::Error>)
+    #[error("{1}")]
+    UnexpectedError(#[source] Box<dyn std::error::Error>, String)
 }
 impl std::fmt::Debug for SubscribeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -262,11 +287,18 @@ impl std::fmt::Debug for SubscribeError {
     }
 }
 
+// impl Display for SubscribeError {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         error_chain_fmt(self,f)
+//     }
+// }
+
+
 impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
         match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR
+            SubscribeError::UnexpectedError(_, _) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
