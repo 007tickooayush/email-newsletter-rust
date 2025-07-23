@@ -1,5 +1,4 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
+use std::fmt::Formatter;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
@@ -13,6 +12,9 @@ use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
+
+// required for .context() function usage
+use anyhow::Context;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -58,23 +60,14 @@ pub async fn subscribe(
     let mut transaction = connection
         .begin()
         .await
-        .map_err(|e|
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to acquire Database Connection From the pool".into()
-            )
-        )?;
+        .context("Failed to acquire Database Connection From the pool")?;
 
     let subscription_id = insert_subscriber(
         &mut transaction,
         &new_subscriber
-    ).await
-        .map_err(|e|
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to add new subscriber into the database".into()
-            )
-        )?;
+    )
+        .await
+        .context("Failed to add new subscriber into the database")?;
 
     // Get the new generated subscription token
     let subscription_token = generate_subscription_token();
@@ -83,23 +76,13 @@ pub async fn subscribe(
         subscription_id,
         &subscription_token
     ).await
-        .map_err(|e|
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to store new subscriber token into the database".into()
-            )
-        )?;
+        .context("Failed to store new subscriber token into the database")?;
 
 
     transaction
         .commit()
         .await
-        .map_err(|e|
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to commit the SQL transaction to store a new subscriber".into()
-            )
-        )?;
+        .context("Failed to commit the SQL transaction to store a new subscriber")?;
 
     send_confirmation_email(
         &email_client,
@@ -108,12 +91,7 @@ pub async fn subscribe(
         &subscription_token // dynamic token assignment
     )
         .await
-        .map_err(|e|
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to send confirmation email".into()
-            )
-        )?;
+        .context("Failed to send confirmation email")?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -276,10 +254,9 @@ fn error_chain_fmt(
 pub enum SubscribeError {
     #[error("{0}")]
     ValidationError(String),
-    // Transparent delegates both `Display`'s and `source`'s implementation
-    // to the type wrapped by `UnexpectedError`.
-    #[error("{1}")]
-    UnexpectedError(#[source] Box<dyn std::error::Error>, String)
+    // `.context` is provided by the `Context` trait from anyhow crate
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error)
 }
 impl std::fmt::Debug for SubscribeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -298,7 +275,7 @@ impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
         match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscribeError::UnexpectedError(_, _) => StatusCode::INTERNAL_SERVER_ERROR
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
