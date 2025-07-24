@@ -186,11 +186,12 @@ pub async fn store_token(
         subscriber_id
     )
         .execute(transaction)
-        .await.unwrap();
-        // .map_err(|e| {
-        //     tracing::error!("Failed to execute `storage_token` query: {:?}", e);
-        //     e
-        // })?;
+        .await
+        // .unwrap();
+        .map_err(|e| {
+            tracing::error!("Failed to execute `storage_token` query: {:?}", e);
+            e
+        })?;
 
     Ok(())
 }
