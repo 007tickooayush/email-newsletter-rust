@@ -3,6 +3,43 @@ use wiremock::{Mock, ResponseTemplate};
 use crate::helpers::{spawn_app, ConfirmationLink, TestApp};
 
 #[tokio::test]
+async fn test_newsletters_returns_400_for_invalid_data() {
+    let app = spawn_app().await;
+    let test_cases = vec![
+        (
+            serde_json::json!({
+                "content" : {
+                    "text": "Newsletter body as plain text"
+                }
+            }),
+            "missing subject"
+        ),
+        (
+            serde_json::json!({
+                "subject": "Newsletter subject"
+            }),
+            "missing content"
+        )
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        let response = reqwest::Client::new()
+            .post(&format!("{}/newsletters", &app.address))
+            .json(&invalid_body)
+            .send()
+            .await
+            .expect("Failed to execute newsletter request");
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The API did not fail with 400 Bad Request when the payload was {}",
+            error_message
+        );
+    }
+}
+
+#[tokio::test]
 async fn test_newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     let app = spawn_app().await;
     create_unconfirmed_subscriber(&app).await;
