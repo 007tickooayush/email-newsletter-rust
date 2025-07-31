@@ -15,7 +15,7 @@ pub struct BodyData {
 }
 
 struct ConfirmedSubscriber {
-    email: String
+    email: SubscriberEmail
 }
 
 #[derive(thiserror::Error)]
@@ -52,24 +52,21 @@ pub async fn publish_newsletter(
     let subscribers = get_confirmed_subscribers(&pool).await?;
 
     for subscriber in subscribers {
-        if let Ok(subscriber_email) = SubscriberEmail::parse(subscriber.email) {
-            email_client
-                .send_email(
-                    subscriber_email,
-                    &body.subject,
-                    &body.text,
-                    &body.category
-                )
-                .await
-                // using `.with_context` instead of `.context` function
-                .with_context(|| {
-                    // with_context us utilized due to the runtime cost of error handling
-                    // as the subscriber's email will not be static and will be only available at runtime
-                   format!("Failed to send newsletter email to subscriber: {}", subscriber.email)
-                })?;
-        } else {
-            return Err(PublishError::UnexpectedError(anyhow::anyhow!("Unable to parse subscriber email")));
-        }
+        email_client
+            .send_email(
+                subscriber.email,
+                &body.subject,
+                &body.text,
+                &body.category
+            )
+            .await
+            // using `.with_context` instead of `.context` function
+            .with_context(|| {
+                // with_context us utilized due to the runtime cost of error handling
+                // as the subscriber's email will not be static and will be only available at runtime
+               format!("Failed to send newsletter email to subscriber: {}", subscriber.email)
+            })?;
+
     }
 
     Ok(HttpResponse::Ok().finish())
@@ -83,8 +80,14 @@ pub async fn publish_newsletter(
 async fn get_confirmed_subscribers(
     pool: &PgPool
 ) -> Result<Vec<ConfirmedSubscriber>, anyhow::Error>{
+
+    // A temporary utility struct to convert the
+    // String to a custom type `SubscriberEmail`
+    struct Row {
+        email: String
+    }
     let rows = sqlx::query_as!(
-        ConfirmedSubscriber,
+        Row,
         r#"
             SELECT email
             FROM subscriptions
@@ -93,5 +96,12 @@ async fn get_confirmed_subscribers(
     )
         .fetch_all(pool)
         .await?;
-    Ok(rows)
+
+    let confirmed_subscribers = rows
+        .into_iter()
+        .map(|r| ConfirmedSubscriber {
+            email: SubscriberEmail::parse(r.email).unwrap()
+        })
+        .collect();
+    Ok(confirmed_subscribers)
 }
