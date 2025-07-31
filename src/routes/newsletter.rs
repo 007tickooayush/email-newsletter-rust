@@ -1,7 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::http::StatusCode;
+use anyhow::Context;
 use sqlx::PgPool;
+use crate::domain::subscriber_email::SubscriberEmail;
+use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
 
 #[derive(serde::Deserialize)]
@@ -42,15 +45,41 @@ impl ResponseError for PublishError {
 
 // Dummy implementation for newsletter endpoint
 pub async fn publish_newsletter(
-    _body: web::Json<BodyData>,
-    pool: web::Data<PgPool>
+    body: web::Json<BodyData>,
+    pool: web::Data<PgPool>,
+    email_client: web::Data<EmailClient>
 ) -> Result<HttpResponse, PublishError> {
-    let _subscribers = get_confirmed_subscribers(&pool).await?;
+    let subscribers = get_confirmed_subscribers(&pool).await?;
+
+    for subscriber in subscribers {
+        if let Ok(subscriber_email) = SubscriberEmail::parse(subscriber.email) {
+            email_client
+                .send_email(
+                    subscriber_email,
+                    &body.subject,
+                    &body.text,
+                    &body.category
+                )
+                .await
+                // using `.with_context` instead of `.context` function
+                .with_context(|| {
+                    // with_context us utilized due to the runtime cost of error handling
+                    // as the subscriber's email will not be static and will be only available at runtime
+                   format!("Failed to send newsletter email to subscriber: {}", subscriber.email)
+                })?;
+        } else {
+            return Err(PublishError::UnexpectedError(anyhow::anyhow!("Unable to parse subscriber email")));
+        }
+    }
+
     Ok(HttpResponse::Ok().finish())
 }
 
 
-
+#[tracing::instrument(
+    name = "Get confirmed subscribers",
+    skip(pool),
+)]
 async fn get_confirmed_subscribers(
     pool: &PgPool
 ) -> Result<Vec<ConfirmedSubscriber>, anyhow::Error>{
