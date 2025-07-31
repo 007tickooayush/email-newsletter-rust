@@ -15,6 +15,7 @@ use crate::startup::ApplicationBaseUrl;
 
 // required for .context() function usage
 use anyhow::Context;
+use crate::routes::error_chain_fmt;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -233,18 +234,6 @@ impl std::error::Error for StoreTokenError {
 }
 
 
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>
-) -> std::fmt::Result {
-    writeln!(f,"{}\n",e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}
 
 
 /// new error type for handling errors with the understanding of HTTP protocol
