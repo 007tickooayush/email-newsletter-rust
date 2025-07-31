@@ -27,15 +27,6 @@ impl Debug for PublishError {
     }
 }
 
-impl Display for PublishError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Error occurred when the user tries to access the confirmed subscribers and send email to them"
-        )
-    }
-}
-
 impl ResponseError for PublishError {
     fn status_code(&self) -> StatusCode {
         match self {
