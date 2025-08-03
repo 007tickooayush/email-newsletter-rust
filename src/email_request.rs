@@ -20,8 +20,12 @@ pub struct ToEmailRequest {
 }
 
 impl ToEmailRequest {
-    pub fn new(email: SubscriberEmail) -> Self {
-        Self { email }
+    pub fn new(email: &str) -> Result<Self, anyhow::Error> {
+        if let Ok(email) = SubscriberEmail::parse(String::from(email)) {
+            Ok(Self { email })
+        } else {
+            Err(anyhow::anyhow!("Invalid To Email address provided"))
+        }
     }
 }
 

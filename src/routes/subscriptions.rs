@@ -116,7 +116,7 @@ pub async fn send_confirmation_email(
     // Send a static email to the new subscriber
     email_client
         .send_email(
-            new_subscriber.email,
+            &new_subscriber.email,
             "Weclome!",
             &format!(
                 "Welcome to our newsletter! <br/> \

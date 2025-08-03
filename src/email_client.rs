@@ -37,7 +37,7 @@ impl EmailClient {
 
     pub async fn send_email(
         &self,
-        recipient: SubscriberEmail,
+        recipient: &SubscriberEmail,
         subject: &str,
         // html_content: &str,  // No html content required in MailTrap email schema
         text: &str,
@@ -53,8 +53,10 @@ impl EmailClient {
         let from_name = SubscriberName::parse(self.sender_name.as_ref().to_owned()).expect("Send Attempt for an Invalid Name");
         let from = FromEmailRequest::new(from_email, from_name);
 
+        let to_email = ToEmailRequest::new(recipient.as_ref()).expect("Send Attempt for an Invalid 'To' Email");
+
         let to = vec![
-            ToEmailRequest::new(recipient),
+            to_email,
         ];
 
         let request_body = SendEmailRequest {
@@ -170,7 +172,7 @@ mod tests {
 
 
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &category())
+            .send_email(&email(), &subject(), &content(), &category())
             .await;
 
         // Assert that the request was sent successfully
@@ -194,7 +196,7 @@ mod tests {
             .await;
 
         let outcome = email_client
-            .send_email(subscriber_email, &subject, &content, &category)
+            .send_email(&subscriber_email, &subject, &content, &category)
             .await;
 
         assert_err!(outcome);
@@ -216,7 +218,7 @@ mod tests {
             .await;
 
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &category())
+            .send_email(&email(), &subject(), &content(), &category())
             .await;
 
         assert_err!(outcome);
