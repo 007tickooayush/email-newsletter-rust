@@ -38,6 +38,7 @@ quickcheck_macros = "0.9.1"
 rand = { version = "0.8.0", features = ["std_rng"] }
 thiserror = "1.0.69"
 anyhow = "1.0.0"
+base64 = "0.13.0"
 
 [dependencies.sqlx]
 version = "0.5.7"
