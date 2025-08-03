@@ -87,6 +87,25 @@ async fn test_newsletters_are_delivered_to_confirmed_subscribers() {
     assert_eq!(response.status().as_u16(), 200);
 }
 
+#[tokio::test]
+async fn test_requests_missing_authorization_are_rejected() {
+    let app = spawn_app().await;
+
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .json(&serde_json::json!({
+            "subject": "Newsletter title",
+            "text": "<p>Newsletter body</p>",
+            "category": "subscribers",
+        }))
+        .send()
+        .await
+        .expect("Failed to execute authorization request");
+
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(r#"Basic realm="publish""#, response.headers()["WWW-Authorization"]);
+}
+
 /// Use the Public API of the application to create an unconfirmed subscriber
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLink {
     let body = "name=honda%20davidson&email=honda_davidson%40gmail.com";
@@ -94,7 +113,7 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLink {
     // Test the subscription endpoint by sending a POST request
     // This is required since the subscribe endpoint is updated to send a confirmation email
     Mock::given(path("/api/send"))
-        .and(method("POST"))
+        .   and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&app.email_server)
         .await;
