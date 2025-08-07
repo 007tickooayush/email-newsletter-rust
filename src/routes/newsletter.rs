@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 use actix_web::{web, HttpRequest, HttpResponse, ResponseError};
-use actix_web::http::header::HeaderMap;
-use actix_web::http::StatusCode;
+use actix_web::http::header::{HeaderMap, HeaderValue};
+use actix_web::http::{header, StatusCode};
 use anyhow::Context;
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::email_client::EmailClient;
@@ -35,11 +35,23 @@ impl Debug for PublishError {
 }
 
 impl ResponseError for PublishError {
-    fn status_code(&self) -> StatusCode {
+    fn error_response(&self) -> HttpResponse {
         match self {
-            PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            PublishError::UnexpectedError(_) => {
+                HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
+            },
             // Return a 401 status for Auth related Error
-            PublishError::AuthError(_) => StatusCode::UNAUTHORIZED,
+            PublishError::AuthError(_) => {
+                let mut response = HttpResponse::new(StatusCode::UNAUTHORIZED);
+                let header_value = HeaderValue::from_str(r#"Basic realm="publish""#)
+                    .unwrap();
+                response
+                    .headers_mut()
+                    // actix_web::http::header provides a collection of well-known/standard constants
+                    // for HTTP requests
+                    .insert(header::WWW_AUTHENTICATE, header_value);
+                response
+            },
         }
     }
 }
@@ -49,7 +61,31 @@ impl ResponseError for PublishError {
 //     text: String
 // }
 
-// Dummy implementation for newsletter endpoint
+async fn validate_credentials(
+    credentials: Credentials,
+    pool: &PgPool
+) -> Result<uuid::Uuid, PublishError> {
+    let user_id: Option<_> = sqlx::query!(
+        r#"
+            SELECT user_id
+            FROM users
+            WHERE username = $1 AND password = $2
+        "#,
+        credentials.username,
+        credentials.password.expose_secret()
+    )
+        .fetch_optional(pool)
+        .await
+        .context("Failed to perform a query to validate auth credentials")
+        .map_err(PublishError::UnexpectedError)?;
+
+    user_id
+        .map(|row| row.user_id)
+        .ok_or_else(|| anyhow::anyhow!("Invalid username or password"))
+        .map_err(PublishError::AuthError)
+}
+
+
 pub async fn publish_newsletter(
     body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
@@ -57,8 +93,9 @@ pub async fn publish_newsletter(
     // added new extractor HttpRequest
     request: HttpRequest,
 ) -> Result<HttpResponse, PublishError> {
-    let _credentials = basic_authentication(request.headers())
+    let credentials = basic_authentication(request.headers())
         .map_err(PublishError::AuthError)?;
+    let user_id = validate_credentials(credentials, &pool).await?;
     let subscribers = get_confirmed_subscribers(&pool).await?;
 
     for subscriber in subscribers {

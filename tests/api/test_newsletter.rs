@@ -103,7 +103,7 @@ async fn test_requests_missing_authorization_are_rejected() {
         .expect("Failed to execute authorization request");
 
     assert_eq!(401, response.status().as_u16());
-    assert_eq!(r#"Basic realm="publish""#, response.headers()["WWW-Authorization"]);
+    assert_eq!(r#"Basic realm="publish""#, response.headers()["WWW-Authenticate"]);
 }
 
 /// Use the Public API of the application to create an unconfirmed subscriber

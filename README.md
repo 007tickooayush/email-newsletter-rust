@@ -101,3 +101,8 @@ sqlx migrate add make_status_not_null_in_subscriptions
 ```bash
 sqlx migrate add create_subscription_tokens_table
 ```
+
+## Script for creating `users` table:
+```bash
+sqlx migrate add create_users_table
+```
