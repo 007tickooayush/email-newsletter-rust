@@ -140,13 +140,29 @@ pub async fn spawn_app() -> TestApp {
     let _ = tokio::spawn(application.run_until_stopped());
 
     // Get the address of the server
-    TestApp {
+    let test_app = TestApp {
         address,
         db_pool: get_connection_pool(&configuration.database),
         configuration,
         email_server,
         port: application_port
-    }
+    };
+    add_test_user(&test_app.db_pool).await;
+    test_app
+}
+
+async fn add_test_user(pool: &PgPool) {
+    sqlx::query!(r#"
+        INSERT INTO users(user_id, username, password)
+        VALUES ($1, $2, $3)
+    "#,
+        Uuid::new_v4(),
+        Uuid::new_v4().to_string(),
+        Uuid::new_v4().to_string()
+    )
+        .execute(pool)
+        .await
+        .expect("Failed to create test user");
 }
 
 

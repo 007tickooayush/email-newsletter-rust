@@ -86,6 +86,11 @@ async fn validate_credentials(
 }
 
 
+#[tracing::instrument(
+    name = "Publish a newsletter issue",
+    skip(body, pool, email_client, request),
+    fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
+)]
 pub async fn publish_newsletter(
     body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
@@ -95,7 +100,15 @@ pub async fn publish_newsletter(
 ) -> Result<HttpResponse, PublishError> {
     let credentials = basic_authentication(request.headers())
         .map_err(PublishError::AuthError)?;
+    tracing::Span::current().record(
+        "username",
+        &tracing::field::display(&credentials.username)
+    );
     let user_id = validate_credentials(credentials, &pool).await?;
+    tracing::Span::current().record(
+        "user_id",
+        &tracing::field::display(&user_id)
+    );
     let subscribers = get_confirmed_subscribers(&pool).await?;
 
     for subscriber in subscribers {
