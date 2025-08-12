@@ -83,15 +83,27 @@ impl TestApp {
         &self,
         body: serde_json::Value
     ) -> reqwest::Response{
+        let (username, password) = self.test_user().await;
         reqwest::Client::new()
             .post(&format!("{}/newsletters", &self.address))
-            // Providing Random Credentials here
+            // Providing Generated Credentials here
             // `reqwest` handles all the encoding/formatting
-            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            .basic_auth(username, Some(password))
             .json(&body)
             .send()
             .await
             .expect("Failed to trigger newsletter request.")
+    }
+
+    pub async fn test_user(&self) -> (String, String) {
+        let row = sqlx::query!(
+            r#"SELECT username, password FROM users LIMIT 1"#
+        )
+            .fetch_one(&self.db_pool)
+            .await
+            .expect("Failed to create and fetch test users");
+
+        (row.username, row.password)
     }
 }
 
