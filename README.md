@@ -106,3 +106,8 @@ sqlx migrate add create_subscription_tokens_table
 ```bash
 sqlx migrate add create_users_table
 ```
+
+## Create Script file for renaming password column generated using command:
+```bash
+sqlx migrate add rename_password_column
+```

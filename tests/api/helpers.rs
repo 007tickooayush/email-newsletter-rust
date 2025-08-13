@@ -7,6 +7,7 @@ use email_newsletter_rust::telemetry::{get_subscriber, init_subscriber};
 use sqlx::{PgConnection, Connection, PgPool, Executor};
 use wiremock::MockServer;
 use email_newsletter_rust::startup::{get_connection_pool, Application};
+use sha3::Digest;
 
 // Ensure that the `tracing` stack is only initialized once rather than for each test case
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -36,7 +37,8 @@ pub struct TestApp {
     pub db_pool: PgPool,
     pub configuration: Settings,
     pub email_server: MockServer,
-    pub port: u16
+    pub port: u16,
+    pub test_user: TestUser
 }
 
 impl TestApp {
@@ -83,12 +85,11 @@ impl TestApp {
         &self,
         body: serde_json::Value
     ) -> reqwest::Response{
-        let (username, password) = self.test_user().await;
         reqwest::Client::new()
             .post(&format!("{}/newsletters", &self.address))
             // Providing Generated Credentials here
             // `reqwest` handles all the encoding/formatting
-            .basic_auth(username, Some(password))
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
@@ -97,16 +98,52 @@ impl TestApp {
 
     pub async fn test_user(&self) -> (String, String) {
         let row = sqlx::query!(
-            r#"SELECT username, password FROM users LIMIT 1"#
+            r#"SELECT username, password_hash FROM users LIMIT 1"#
         )
             .fetch_one(&self.db_pool)
             .await
             .expect("Failed to create and fetch test users");
 
-        (row.username, row.password)
+        (row.username, row.password_hash)
     }
 }
 
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String
+}
+
+
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string()
+        }
+    }
+
+    async fn store(&self, pool: &PgPool) {
+        let password_hash = sha3::Sha3_256::digest(
+            self.password.as_bytes()
+        );
+        let password_hash = format!("{:x}", password_hash);
+
+        sqlx::query!(
+            r#"
+                INSERT INTO users (user_id, username, password_hash)
+                VALUES ($1, $2, $3)
+            "#,
+            self.user_id,
+            self.username,
+            password_hash
+        )
+            .execute(pool)
+            .await
+            .expect("Failed to store test user");
+    }
+}
 
 /// Spin up the application in the background
 /// Return the address of the application i.e localhost:XXXX
@@ -157,26 +194,12 @@ pub async fn spawn_app() -> TestApp {
         db_pool: get_connection_pool(&configuration.database),
         configuration,
         email_server,
-        port: application_port
+        port: application_port,
+        test_user: TestUser::generate()
     };
-    add_test_user(&test_app.db_pool).await;
+    test_app.test_user.store(&test_app.db_pool).await;
     test_app
 }
-
-async fn add_test_user(pool: &PgPool) {
-    sqlx::query!(r#"
-        INSERT INTO users(user_id, username, password)
-        VALUES ($1, $2, $3)
-    "#,
-        Uuid::new_v4(),
-        Uuid::new_v4().to_string(),
-        Uuid::new_v4().to_string()
-    )
-        .execute(pool)
-        .await
-        .expect("Failed to create test user");
-}
-
 
 /// NOTE: there is no cleanup mechanism implemented the created databases using random V4 UUIDs
 /// For handling the complete process properly the active Database connections need to be terminated,
