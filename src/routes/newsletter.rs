@@ -3,6 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse, ResponseError};
 use actix_web::http::header::{HeaderMap, HeaderValue};
 use actix_web::http::{header, StatusCode};
 use anyhow::Context;
+use argon2::{Algorithm, Argon2, Params, Version};
 use secrecy::{ExposeSecret, Secret};
 use sha3::Digest;
 use sqlx::PgPool;
@@ -66,6 +67,14 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool
 ) -> Result<uuid::Uuid, PublishError> {
+
+    let hasher = Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(15000, 2, 1, None)
+            .context("Failed to build Argon2 parameters")
+            .map_err(PublishError::UnexpectedError)?,
+    );
 
     let password_hash = sha3::Sha3_256::digest(
         credentials.password.expose_secret().as_bytes()

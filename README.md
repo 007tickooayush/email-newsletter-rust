@@ -111,3 +111,8 @@ sqlx migrate add create_users_table
 ```bash
 sqlx migrate add rename_password_column
 ```
+
+## Create Script file for 
+```bash
+sqlx migrate add add_salt_to_users
+```
