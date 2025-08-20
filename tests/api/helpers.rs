@@ -1,4 +1,6 @@
 use std::net::TcpListener;
+use argon2::{Argon2, PasswordHasher};
+use argon2::password_hash::SaltString;
 use once_cell::sync::Lazy;
 use uuid::Uuid;
 use email_newsletter_rust::configuration::{get_configuration, DatabaseSettings, Settings};
@@ -7,7 +9,6 @@ use email_newsletter_rust::telemetry::{get_subscriber, init_subscriber};
 use sqlx::{PgConnection, Connection, PgPool, Executor};
 use wiremock::MockServer;
 use email_newsletter_rust::startup::{get_connection_pool, Application};
-use sha3::Digest;
 
 // Ensure that the `tracing` stack is only initialized once rather than for each test case
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -125,11 +126,12 @@ impl TestUser {
     }
 
     async fn store(&self, pool: &PgPool) {
-        let password_hash = sha3::Sha3_256::digest(
-            self.password.as_bytes()
-        );
-        let password_hash = format!("{:x}", password_hash);
-
+        let salt = SaltString::generate(&mut rand::thread_rng());
+        // the exact Argon2 parameters do not matter for testing
+        let password_hash = Argon2::default()
+            .hash_password(self.password.as_bytes(), &salt)
+            .unwrap()
+            .to_string();
         sqlx::query!(
             r#"
                 INSERT INTO users (user_id, username, password_hash)

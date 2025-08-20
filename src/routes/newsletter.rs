@@ -5,7 +5,6 @@ use actix_web::http::{header, StatusCode};
 use anyhow::Context;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordVerifier, Version};
 use secrecy::{ExposeSecret, Secret};
-use sha3::Digest;
 use sqlx::PgPool;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::email_client::EmailClient;
