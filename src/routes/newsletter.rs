@@ -75,24 +75,45 @@ async fn validate_credentials(
         .map_err(PublishError::UnexpectedError)?
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username")))?;
 
+    // This is a CPU intensive task
+    // using the tracing's in_scope to track the time taken by Argon2
+    tokio::task::spawn_blocking(move || {
+        tracing::info_span!("Verify password hash")
+            .in_scope(|| {
+                verify_password_hash(
+                    expected_password_hash,
+                    credentials.password
+                )
+            })
+    })
+        .await
+        .context("Invalid password")
+        .map_err(PublishError::UnexpectedError)??;
+
+    Ok(user_id)
+}
+
+#[tracing::instrument(
+    name = "Verify Password Hash",
+    skip(expected_password_hash, password_candidate)
+)]
+fn verify_password_hash(
+    expected_password_hash: Secret<String>,
+    password_candidate: Secret<String>
+) -> Result<(), PublishError> {
     let expected_password_hash = PasswordHash::new(
         &expected_password_hash.expose_secret()
     )
+        .context("Failed to parse hash in PHC string format")
         .map_err(PublishError::UnexpectedError)?;
 
-    // using the tracing's in_scope to track the time taken by Argon2
-    tracing::info_span!("Verify password hash")
-        .in_scope(|| {
-            Argon2::default()
-                .verify_password(
-                    credentials.password.expose_secret().as_bytes(),
-                    &expected_password_hash
-                )
-        })
-        .context("Invalid password")
-        .map_err(PublishError::AuthError)?;
-
-    Ok(user_id)
+    Argon2::default()
+        .verify_password(
+            password_candidate.expose_secret().as_bytes(),
+            &expected_password_hash
+        )
+        .context("Invalid Password")
+        .map_err(PublishError::AuthError)
 }
 
 #[tracing::instrument(
