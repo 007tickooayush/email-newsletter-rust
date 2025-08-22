@@ -67,14 +67,24 @@ async fn validate_credentials(
     pool: &PgPool
 ) -> Result<uuid::Uuid, PublishError> {
 
+    // Standardizing the response time for existing username and non-existing credentials
+    let mut user_id = None;
+    let mut expected_password_hash = Secret::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
+        gZiV/M1gPc22ElAH/Jh1Hw$\
+        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno".to_string()
+    );
 
-    let (user_id, expected_password_hash) = get_stored_credentials(
+    if let Some((stored_user_id, stored_password_hash)) = get_stored_credentials(
         &credentials.username,
         &pool
     )
         .await
         .map_err(PublishError::UnexpectedError)?
-        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username")))?;
+    {
+        user_id = Some(stored_user_id);
+        expected_password_hash = stored_password_hash;
+    }
 
     // This is a CPU intensive task
     // Offloaded to separate thread via custom spawn_blocking implementation
@@ -93,7 +103,14 @@ async fn validate_credentials(
         .context("Invalid password")
         .map_err(PublishError::UnexpectedError)??;
 
-    Ok(user_id)
+    // The return value is only set to `Some` if the credentials are found in the store
+    // Hence, even if the default password ends up matching with the provided password
+    // ew never authenticate the non-existing user.
+    //
+    // This is also being tested by adding a test case specific to this scenario
+    user_id.ok_or_else(||
+        PublishError::AuthError(anyhow::anyhow!("unknown username"))
+    )
 }
 
 #[tracing::instrument(
