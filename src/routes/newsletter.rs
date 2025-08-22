@@ -9,6 +9,7 @@ use sqlx::PgPool;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
+use crate::telemetry::spawn_blocking_with_tracing;
 
 #[derive(serde::Deserialize)]
 pub struct BodyData {
@@ -76,15 +77,17 @@ async fn validate_credentials(
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username")))?;
 
     // This is a CPU intensive task
-    // using the tracing's in_scope to track the time taken by Argon2
-    tokio::task::spawn_blocking(move || {
-        tracing::info_span!("Verify password hash")
-            .in_scope(|| {
-                verify_password_hash(
-                    expected_password_hash,
-                    credentials.password
-                )
-            })
+    // Offloaded to separate thread via custom spawn_blocking implementation
+    // provided in current project's telemetry handling
+    spawn_blocking_with_tracing(|| {
+        // the separate thread is required, but it is also required to be in current tracing span's
+        // scope, which is provided via the spawn_blocking_with_tracing_function, in order to
+        // inherit the root span's(current thread's) properties, e.g, request_id, http.method,
+        // http.route, etc.
+        verify_password_hash(
+            expected_password_hash,
+            credentials.password
+        )
     })
         .await
         .context("Invalid password")

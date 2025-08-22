@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use wiremock::matchers::{any, method, path};
 use wiremock::{Mock, ResponseTemplate};
 use crate::helpers::{spawn_app, ConfirmationLink, TestApp};
@@ -104,6 +105,65 @@ async fn test_requests_missing_authorization_are_rejected() {
 
     assert_eq!(401, response.status().as_u16());
     assert_eq!(r#"Basic realm="publish""#, response.headers()["WWW-Authenticate"]);
+}
+
+
+#[tokio::test]
+async fn test_non_existing_user_is_rejected() {
+    // Arrange
+    let app = spawn_app().await;
+
+    // Generate Invalid Credentials
+    let username = Uuid::new_v4().to_string();
+    let password = Uuid::new_v4().to_string();
+
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!({
+            "subject": "Testing newsletter endpoint CPU intensive tasks handling",
+            "text": "<p>Testing newsletter endpoint CPU intensive tasks handling</p>",
+            "category": "subscribers",
+        }))
+        .send()
+        .await
+        .expect("Failed to execute request");
+
+    // Assert the response
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        response.headers()["WWW-Authenticate"]
+    );
+}
+
+#[tokio::test]
+async fn test_invalid_password_is_rejected() {
+    // Arrange
+    let app = spawn_app().await;
+    let username = &app.test_user.username;
+    // Random invalid password
+    let password = Uuid::new_v4().to_string();
+    assert_ne!(app.test_user.password, password);
+
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!({
+            "subject": "Testing newsletter endpoint CPU intensive tasks handling",
+            "text": "<p>Testing newsletter endpoint CPU intensive tasks handling</p>",
+            "category": "subscribers",
+        }))
+        .send()
+        .await
+        .expect("Failed to execute test invalid password request");
+
+    // Assert
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        response.headers()["WWW-Authenticate"]
+    );
 }
 
 /// Use the Public API of the application to create an unconfirmed subscriber
