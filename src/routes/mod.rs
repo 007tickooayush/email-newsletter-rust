@@ -3,6 +3,7 @@ mod subscriptions;
 mod subscriptions_confirm;
 mod newsletter;
 mod home;
+mod login;
 
 fn error_chain_fmt(
     e: &impl std::error::Error,
@@ -23,3 +24,4 @@ pub use subscriptions::*;
 pub use subscriptions_confirm::*;
 pub use newsletter::*;
 pub use home::*;
+pub use login::*;
