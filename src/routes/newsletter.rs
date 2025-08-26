@@ -6,6 +6,7 @@ use anyhow::Context;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordVerifier, Version};
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
+use crate::authentication::AuthError;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
@@ -65,7 +66,7 @@ impl ResponseError for PublishError {
 async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool
-) -> Result<uuid::Uuid, PublishError> {
+) -> Result<uuid::Uuid, AuthError> {
 
     // Standardizing the response time for existing username and non-existing credentials
     let mut user_id = None;
@@ -79,8 +80,7 @@ async fn validate_credentials(
         &credentials.username,
         &pool
     )
-        .await
-        .map_err(PublishError::UnexpectedError)?
+        .await?
     {
         user_id = Some(stored_user_id);
         expected_password_hash = stored_password_hash;
@@ -100,17 +100,16 @@ async fn validate_credentials(
         )
     })
         .await
-        .context("Invalid password")
-        .map_err(PublishError::UnexpectedError)??;
+        .context("Invalid password")??;
 
     // The return value is only set to `Some` if the credentials are found in the store
     // Hence, even if the default password ends up matching with the provided password
     // ew never authenticate the non-existing user.
     //
     // This is also being tested by adding a test case specific to this scenario
-    user_id.ok_or_else(||
-        PublishError::AuthError(anyhow::anyhow!("unknown username"))
-    )
+    user_id
+        .ok_or_else(|| anyhow::anyhow!("unknown username"))
+        .map_err(AuthError::InvalidCredentials)
 }
 
 #[tracing::instrument(
@@ -120,12 +119,11 @@ async fn validate_credentials(
 fn verify_password_hash(
     expected_password_hash: Secret<String>,
     password_candidate: Secret<String>
-) -> Result<(), PublishError> {
+) -> Result<(), AuthError> {
     let expected_password_hash = PasswordHash::new(
         &expected_password_hash.expose_secret()
     )
-        .context("Failed to parse hash in PHC string format")
-        .map_err(PublishError::UnexpectedError)?;
+        .context("Failed to parse hash in PHC string format")?;
 
     Argon2::default()
         .verify_password(
@@ -133,7 +131,7 @@ fn verify_password_hash(
             &expected_password_hash
         )
         .context("Invalid Password")
-        .map_err(PublishError::AuthError)
+        .map_err(AuthError::InvalidCredentials)
 }
 
 #[tracing::instrument(
@@ -177,7 +175,12 @@ pub async fn publish_newsletter(
         "username",
         &tracing::field::display(&credentials.username)
     );
-    let user_id = validate_credentials(credentials, &pool).await?;
+    let user_id = validate_credentials(credentials, &pool)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidCredentials(_) => PublishError::AuthError(e.into()),
+            AuthError::UnexpectedError(_) => PublishError::UnexpectedError(e.into())
+        })?;
     tracing::Span::current().record(
         "user_id",
         &tracing::field::display(&user_id)

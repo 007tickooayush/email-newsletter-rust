@@ -17,6 +17,7 @@ mod telemetry;
 mod domain;
 mod email_client;
 mod email_request;
+mod authentication;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
