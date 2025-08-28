@@ -1,9 +1,9 @@
 mod health_check;
 mod subscriptions;
 mod subscriptions_confirm;
-mod newsletter;
 mod home;
 mod login;
+mod newsletter;
 
 fn error_chain_fmt(
     e: &impl std::error::Error,
