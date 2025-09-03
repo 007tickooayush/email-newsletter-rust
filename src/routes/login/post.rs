@@ -1,6 +1,7 @@
 use std::fmt::Formatter;
 use actix_web::http::header::LOCATION;
 use actix_web::{web, HttpResponse, ResponseError};
+use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
 use secrecy::Secret;
 use sqlx::PgPool;
@@ -53,11 +54,16 @@ impl std::fmt::Debug for LoginError {
     }
 }
 
+/// Implemented Simple Redirect for handling the request in case of any error
 impl ResponseError for LoginError {
     fn status_code(&self) -> StatusCode {
-        match self {
-            LoginError::AuthError(_) => StatusCode::UNAUTHORIZED,
-            LoginError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR
-        }
+        StatusCode::SEE_OTHER
+    }
+
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        HttpResponse::build(self.status_code())
+            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .finish()
     }
 }
