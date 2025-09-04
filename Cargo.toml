@@ -41,6 +41,9 @@ anyhow = "1.0.0"
 base64 = "0.13.0"
 argon2 = { version = "0.3.0", features = ["std"] }
 urlencoding = "2.0.0"
+htmlescape = "0.3.0"
+hmac = { version = "0.12", features= ["std"] }
+sha2 = "0.10"
 
 [dependencies.sqlx]
 version = "0.5.7"

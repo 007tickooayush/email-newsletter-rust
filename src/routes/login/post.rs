@@ -3,6 +3,7 @@ use actix_web::http::header::LOCATION;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
+use hmac::{Hmac, Mac};
 use secrecy::Secret;
 use sqlx::PgPool;
 use crate::authentication::{validate_credentials, AuthError, Credentials};
@@ -61,9 +62,31 @@ impl ResponseError for LoginError {
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
+        let query_string = format!(
+            "error={}",
+            urlencoding::Encoded::new(self.to_string())
+        );
+
+
+        // TODO: handle the private key required for hmac's sha2
+        let secret: &[u8] = &Vec::new();
+
+        let hmac_tag = {
+            // Handling the Message Authentication Code (MAC)
+            let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
+            mac.update(query_string.as_bytes());
+            mac.finalize().into_bytes()
+        };
+
         let encoded_error = urlencoding::Encoded::new(self.to_string());
+
+        // Appended hexadecimal representation of HMAC tag to the query string
+        // as an additional query parameter
         HttpResponse::build(self.status_code())
-            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .insert_header((
+                LOCATION,
+                format!("/login?error={query_string}&tag={hmac_tag:x}", encoded_error)
+            ))
             .finish()
     }
 }
