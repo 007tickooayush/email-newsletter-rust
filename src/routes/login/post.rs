@@ -85,7 +85,7 @@ impl ResponseError for LoginError {
         HttpResponse::build(self.status_code())
             .insert_header((
                 LOCATION,
-                format!("/login?error={query_string}&tag={hmac_tag:x}", encoded_error)
+                format!("/login?error={query_string}&tag={hmac_tag:x}")
             ))
             .finish()
     }
