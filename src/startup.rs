@@ -2,6 +2,7 @@ use std::net::TcpListener;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use actix_web::web::Data;
+use secrecy::Secret;
 use sqlx::{PgPool};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
@@ -55,7 +56,8 @@ impl Application {
             listener,
             connection,
             email_client,
-            configuration.application.base_url
+            configuration.application.base_url,
+            configuration.application.hmac_secret
         )?;
 
         // Save the port in the Application's port attribute
@@ -98,7 +100,8 @@ pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
-    base_url: String
+    base_url: String,
+    hmac_secret: Secret<String>
 ) -> Result<Server, std::io::Error> {
 
     // using web::Data to wrap the connection in smart pointer(Arc)
@@ -126,9 +129,14 @@ pub fn run(
             .app_data(email_client.clone())
             .app_data(connection.clone())
             .app_data(base_url.clone())
+            // added hmac_secret for application context
+            .app_data(Data::new(HmacSecret(hmac_secret.clone())))
     })
         .listen(listener)?
         .run();
     // No .await here
     Ok(server)
 }
+
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
