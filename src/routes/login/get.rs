@@ -42,7 +42,8 @@ pub async fn login_form(
             Err(e) => {
                 tracing::warn!(
                     error.message = %e,
-                    error.cause_chain = ?e
+                    error.cause_chain = ?e,
+                    "Failed to verify query parameters using the HMAC tag"
                 );
                 "".into()
             }

@@ -97,6 +97,35 @@ impl TestApp {
             .expect("Failed to trigger newsletter request.")
     }
 
+
+    /// An utility function to test the login API
+    ///
+    /// reqwest::Client sees the 303 status code and automatically proceeds to call GET /login, the path
+    /// specified in the Location header, which return a 200
+    ///
+    /// An in order to avoid this, the `reqwest::Client`'s redirect policy is customized
+    pub async fn post_login<Body>(
+        &self,
+        body: &Body
+    ) -> reqwest::Response
+    where
+        Body: serde::Serialize
+    {
+        reqwest::Client::builder()
+            // customizing the redirect policy in reqwest's `Client` which automatically handles
+            // all HTTP redirects
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap()
+            .post(&format!("{}/login", &self.address))
+            // This `reqwest` method is required to make sure that the body is URL-encoded
+            // and the Content-type is set accordingly
+            .form(body)
+            .send()
+            .await
+            .expect("")
+    }
+
     pub async fn test_user(&self) -> (String, String) {
         let row = sqlx::query!(
             r#"SELECT username, password_hash FROM users LIMIT 1"#
@@ -107,6 +136,11 @@ impl TestApp {
 
         (row.username, row.password_hash)
     }
+}
+
+pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
+    assert_eq!(response.status().as_u16(), 303);
+    assert_eq!(response.headers().get("Location").unwrap(), location);
 }
 
 pub struct TestUser {
