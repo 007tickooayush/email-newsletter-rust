@@ -1,6 +1,7 @@
 use std::fmt::Formatter;
+use actix_web::cookie::Cookie;
 use actix_web::http::header::LOCATION;
-use actix_web::{web, HttpResponse, ResponseError};
+use actix_web::{cookie, web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::error::InternalError;
 use actix_web::http::StatusCode;
@@ -64,6 +65,10 @@ pub async fn login(
                 // ))
                 // removed the query parameters from the POST login endpoint
                 .insert_header((LOCATION, "/login"))
+                // setting a cookie in the request manually without the `actix_web::cookie` library
+                // .insert_header(("Set-Cookie", format!("_flash={e}")))
+                // Setting the cookies using `actix_web::cookie`'s `Cookie``provision
+                .cookie(Cookie::new("_flash", e.to_string()))
                 .finish();
 
             Err(InternalError::from_response(e, response))

@@ -39,7 +39,8 @@ pub struct TestApp {
     pub configuration: Settings,
     pub email_server: MockServer,
     pub port: u16,
-    pub test_user: TestUser
+    pub test_user: TestUser,
+    pub api_client: reqwest::Client
 }
 
 impl TestApp {
@@ -48,7 +49,7 @@ impl TestApp {
         &self,
         body: String
     ) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/subscriptions", &self.address))
             .header("Content-type", "application/x-www-form-urlencoded")
             .body(body)
@@ -86,7 +87,7 @@ impl TestApp {
         &self,
         body: serde_json::Value
     ) -> reqwest::Response{
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/newsletters", &self.address))
             // Providing Generated Credentials here
             // `reqwest` handles all the encoding/formatting
@@ -111,12 +112,7 @@ impl TestApp {
     where
         Body: serde::Serialize
     {
-        reqwest::Client::builder()
-            // customizing the redirect policy in reqwest's `Client` which automatically handles
-            // all HTTP redirects
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap()
+        self.api_client
             .post(&format!("{}/login", &self.address))
             // This `reqwest` method is required to make sure that the body is URL-encoded
             // and the Content-type is set accordingly
@@ -124,6 +120,19 @@ impl TestApp {
             .send()
             .await
             .expect("")
+    }
+
+    /// Utility function to only get the String(HTML part) of the response 
+    /// rather than a complete `Response` object
+    pub async fn get_login_html(&self) -> String {
+        self.api_client
+            .get(&format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute GET Login request")
+            .text()
+            .await
+            .unwrap()
     }
 
     pub async fn test_user(&self) -> (String, String) {
@@ -210,6 +219,16 @@ pub async fn spawn_app() -> TestApp {
         c
     };
 
+    // Adding api_client inside the TestApp itself to persist the Cookies set by the server 
+    // via the `cookie_store`
+    // 
+    // this results in same `reqwest::Client` being used throughout the test cases.
+    let api_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
+
     // add the removed configure_database function
     // this function will create a new database with the name
     configure_database(&configuration.database).await;
@@ -236,7 +255,8 @@ pub async fn spawn_app() -> TestApp {
         configuration,
         email_server,
         port: application_port,
-        test_user: TestUser::generate()
+        test_user: TestUser::generate(),
+        api_client
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
