@@ -1,8 +1,11 @@
 use std::net::TcpListener;
+use actix_web::cookie::Key;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use actix_web::web::Data;
-use secrecy::Secret;
+use actix_web_flash_messages::storage::CookieMessageStore;
+use actix_web_flash_messages::FlashMessagesFramework;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{PgPool};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
@@ -114,6 +117,11 @@ pub fn run(
 
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
+    let message_store = CookieMessageStore::builder(
+        Key::from(hmac_secret.expose_secret().as_bytes())
+    ).build();
+    let message_framework = FlashMessagesFramework::builder(message_store).build();
+
     let server = HttpServer::new(move || {
         App::new()
             .route("/", web::get().to(home))
@@ -123,6 +131,7 @@ pub fn run(
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
+            .wrap(message_framework.clone())
             // use `TracingLogger` provided by `tracing-actix-web` crate instead of `Logger` of actix_web crate
             .wrap(TracingLogger::default())
             // Added email_client to application state/context

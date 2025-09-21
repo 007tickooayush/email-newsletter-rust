@@ -5,7 +5,7 @@ use actix_web::{cookie, web, HttpResponse, ResponseError};
 use actix_web::body::BoxBody;
 use actix_web::error::InternalError;
 use actix_web::http::StatusCode;
-use hmac::{Hmac, Mac};
+use actix_web_flash_messages::FlashMessage;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use crate::authentication::{validate_credentials, AuthError, Credentials};
@@ -45,30 +45,12 @@ pub async fn login(
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into())
             };
 
-            // let query_string = format!(
-            //     "error={}",
-            //     urlencoding::Encoded::new(e.to_string())
-            // );
-            //
-            // let hmac_tag = {
-            //     let mut mac = Hmac::<sha2::Sha256>::new_from_slice(
-            //         secret.0.expose_secret().as_bytes()
-            //     ).unwrap();
-            //     mac.update(query_string.as_bytes());
-            //     mac.finalize().into_bytes()
-            // };
-
+            // FlashMessagesFramework middleware takes care of all the heavy-lifting behind the scenes -
+            // creating the cookie, signing it, setting the right properties
+            FlashMessage::error(e.to_string()).send();
             let response = HttpResponse::SeeOther()
-                // .insert_header((
-                //     LOCATION,
-                //     format!("/login?{}tag={:x}", query_string, hmac_tag)
-                // ))
-                // removed the query parameters from the POST login endpoint
                 .insert_header((LOCATION, "/login"))
-                // setting a cookie in the request manually without the `actix_web::cookie` library
-                // .insert_header(("Set-Cookie", format!("_flash={e}")))
-                // Setting the cookies using `actix_web::cookie`'s `Cookie``provision
-                .cookie(Cookie::new("_flash", e.to_string()))
+                // removed cookies from login POST endpoint
                 .finish();
 
             Err(InternalError::from_response(e, response))
@@ -82,7 +64,7 @@ pub async fn login(
 
 #[derive(thiserror::Error)]
 pub enum LoginError {
-    #[error("Authentication Failed")]
+    #[error("Authentication failed")]
     AuthError(#[source] anyhow::Error),
     #[error("Something went wrong")]
     UnexpectedError(#[from] anyhow::Error)
@@ -95,38 +77,39 @@ impl std::fmt::Debug for LoginError {
     }
 }
 
-/// Implemented Simple Redirect for handling the request in case of any error
-impl ResponseError for LoginError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::SEE_OTHER
-    }
+// /// Implemented Simple Redirect for handling the request in case of any error
+// impl ResponseError for LoginError {
+//     fn status_code(&self) -> StatusCode {
+//         StatusCode::SEE_OTHER
+//     }
 
-    fn error_response(&self) -> HttpResponse<BoxBody> {
-        let query_string = format!(
-            "error={}",
-            urlencoding::Encoded::new(self.to_string())
-        );
+//     fn error_response(&self) -> HttpResponse<BoxBody> {
+//         let query_string = format!(
+//             "error={}",
+//             urlencoding::Encoded::new(self.to_string())
+//         );
 
 
-        // TODO: handle the private key required for hmac's sha2
-        let secret: &[u8] = &Vec::new();
+//         // TODO: handle the private key required for hmac's sha2
+//         let secret: &[u8] = &Vec::new();
 
-        let hmac_tag = {
-            // Handling the Message Authentication Code (MAC)
-            let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
-            mac.update(query_string.as_bytes());
-            mac.finalize().into_bytes()
-        };
+//         let hmac_tag = {
+//             // Handling the Message Authentication Code (MAC)
+//             let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
+//             mac.update(query_string.as_bytes());
+//             mac.finalize().into_bytes()
+//         };
 
-        let encoded_error = urlencoding::Encoded::new(self.to_string());
+//         let encoded_error = urlencoding::Encoded::new(self.to_string());
 
-        // Appended hexadecimal representation of HMAC tag to the query string
-        // as an additional query parameter
-        HttpResponse::build(self.status_code())
-            .insert_header((
-                LOCATION,
-                format!("/login?error={query_string}&tag={hmac_tag:x}")
-            ))
-            .finish()
-    }
-}
+//         // Appended hexadecimal representation of HMAC tag to the query string
+//         // as an additional query parameter
+//         HttpResponse::build(self.status_code())
+//             .insert_header((
+//                 LOCATION,
+//                 format!("/login?error={query_string}&tag={hmac_tag:x}")
+//             ))
+//             .finish()
+
+//     }
+// }

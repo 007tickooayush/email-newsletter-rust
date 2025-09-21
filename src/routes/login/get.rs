@@ -2,24 +2,20 @@ use actix_web::cookie::time::Duration;
 use actix_web::cookie::Cookie;
 use actix_web::{HttpRequest, HttpResponse};
 use actix_web::http::header::ContentType;
+use actix_web_flash_messages::{IncomingFlashMessages, Level};
+use std::fmt::Write;
 
 pub async fn login_form(
-    request: HttpRequest
+    flash_messages: IncomingFlashMessages
 ) -> HttpResponse {
-    let error_html = match request.cookie("_flash") {
-        None => "".into(),
-        Some(cookie) => {
-            format!("<p><i>{}</i></p>", cookie.value())
-        }
-    };
+    let mut error_html = String::new();
 
-    let mut response = HttpResponse::Ok()
+    for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
+        writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
+    }
+
+    HttpResponse::Ok()
         .content_type(ContentType::html())
-        // .cookie(
-        //     Cookie::build("_flash", "")
-        //         .max_age(Duration::ZERO)
-        //         .finish()
-        // )
         .body(format!(
             r#"
             <!DOCTYPE html>
@@ -53,12 +49,5 @@ pub async fn login_form(
 </body>
 </html>
             "#
-        ));
-
-    // Better way of Cookie age handling
-    // As it performs the same action commented above, i.e, setting the Max-Age to ZERO 
-    response
-        .add_removal_cookie(&Cookie::new("_flash", ""))
-        .unwrap();
-    response
+        ))
 }
