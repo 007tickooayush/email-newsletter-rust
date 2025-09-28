@@ -20,7 +20,7 @@ mod email_request;
 mod authentication;
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
 
     // Initializing the subscriber
     let subscriber = get_subscriber("email_newsletter_rust".into(), "info".into(), std::io::stdout);

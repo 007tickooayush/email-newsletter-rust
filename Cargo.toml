@@ -43,6 +43,13 @@ urlencoding = "2.0.0"
 htmlescape = "0.3.0"
 actix-web-flash-messages = { version = "0.3", features = ["cookies"]}
 
+[dependencies.actix-session]
+# Using the official (but unreleased) version of actix-session to manage
+# the session store and TLS/auth support
+version = "0.9.0"
+features = ["redis-rs-tls-session"]
+
+
 [dependencies.reqwest]
 version = "0.11.0"
 default-features = false

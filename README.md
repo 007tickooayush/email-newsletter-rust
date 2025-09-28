@@ -121,3 +121,8 @@ sqlx migrate add add_salt_to_users
 ```bash
 sqlx migrate add remove_salt_from_users
 ```
+
+## Mark the redis script as executable before running it:
+```bash
+chmod +x ./scripts/init_redis.sh
+```
