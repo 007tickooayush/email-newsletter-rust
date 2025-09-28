@@ -44,6 +44,19 @@ pub struct TestApp {
 }
 
 impl TestApp {
+    pub async fn get_admin_dashboard(&self) -> String {
+        self.api_client
+            .get(format!("{}/admin/dashboard", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request for Admin Dashboard")
+            .text()
+            .await
+            .unwrap()
+    }
+}
+
+impl TestApp {
     /// Create a new subscriber by sending a POST request to the `/subscriptions` endpoint
     pub async fn post_subscriptions(
         &self,

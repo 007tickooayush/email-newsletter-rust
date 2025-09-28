@@ -49,7 +49,7 @@ pub async fn login(
             // creating the cookie, signing it, setting the right properties
             FlashMessage::error(e.to_string()).send();
             let response = HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/login"))
+                .insert_header((LOCATION, "/admin/dashboard"))
                 // removed cookies from login POST endpoint
                 .finish();
 
