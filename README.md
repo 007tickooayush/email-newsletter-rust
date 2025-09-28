@@ -97,7 +97,7 @@ sqlx migrate add add_status_to_subscriptions
 sqlx migrate add make_status_not_null_in_subscriptions
 ```
 
-## Script for creating `scubscription_tokens` table:
+## Script for creating `subscription_tokens` table:
 ```bash
 sqlx migrate add create_subscription_tokens_table
 ```
