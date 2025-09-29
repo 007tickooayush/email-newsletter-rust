@@ -11,7 +11,6 @@ use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use crate::authentication::{validate_credentials, AuthError, Credentials};
 use crate::routes::error_chain_fmt;
-use crate::startup::HmacSecret;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -26,8 +25,6 @@ pub struct FormData {
 pub async fn login(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
-    // injecting secret string temporarily
-    secret: web::Data<HmacSecret>,
     session: Session
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
@@ -93,40 +90,3 @@ impl std::fmt::Debug for LoginError {
         error_chain_fmt(self, f)
     }
 }
-
-// /// Implemented Simple Redirect for handling the request in case of any error
-// impl ResponseError for LoginError {
-//     fn status_code(&self) -> StatusCode {
-//         StatusCode::SEE_OTHER
-//     }
-
-//     fn error_response(&self) -> HttpResponse<BoxBody> {
-//         let query_string = format!(
-//             "error={}",
-//             urlencoding::Encoded::new(self.to_string())
-//         );
-
-
-//         // TODO: handle the private key required for hmac's sha2
-//         let secret: &[u8] = &Vec::new();
-
-//         let hmac_tag = {
-//             // Handling the Message Authentication Code (MAC)
-//             let mut mac = Hmac::<sha2::Sha256>::new_from_slice(secret).unwrap();
-//             mac.update(query_string.as_bytes());
-//             mac.finalize().into_bytes()
-//         };
-
-//         let encoded_error = urlencoding::Encoded::new(self.to_string());
-
-//         // Appended hexadecimal representation of HMAC tag to the query string
-//         // as an additional query parameter
-//         HttpResponse::build(self.status_code())
-//             .insert_header((
-//                 LOCATION,
-//                 format!("/login?error={query_string}&tag={hmac_tag:x}")
-//             ))
-//             .finish()
-
-//     }
-// }

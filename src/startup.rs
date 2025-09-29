@@ -147,7 +147,7 @@ pub async fn run(
             .app_data(connection.clone())
             .app_data(base_url.clone())
             // added hmac_secret for application context
-            .app_data(Data::new(HmacSecret(hmac_secret.clone())))
+            // .app_data(Data::new(HmacSecret(hmac_secret.clone())))
     })
         .listen(listener)?
         .run();
@@ -155,5 +155,5 @@ pub async fn run(
     Ok(server)
 }
 
-#[derive(Clone)]
-pub struct HmacSecret(pub Secret<String>);
+// #[derive(Clone)]
+// pub struct HmacSecret(pub Secret<String>);
