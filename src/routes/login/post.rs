@@ -42,7 +42,7 @@ pub async fn login(
                 .insert("user_id", user_id)
                 .map_err(|e| login_redirect(LoginError::UnexpectedError(e.into())))?;
             Ok(HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/"))
+                .insert_header((LOCATION, "/admin/dashboard"))
                 .finish())
         },
         Err(e) => {
@@ -50,14 +50,6 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into())
             };
-
-            // FlashMessagesFramework middleware takes care of all the heavy-lifting behind the scenes -
-            // creating the cookie, signing it, setting the right properties
-            FlashMessage::error(e.to_string()).send();
-            let response = HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/admin/dashboard"))
-                // removed cookies from login POST endpoint
-                .finish();
 
             Err(login_redirect(e))
         }

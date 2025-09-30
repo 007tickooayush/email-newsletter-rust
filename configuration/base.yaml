@@ -14,4 +14,4 @@ database:
   database_name: "newsletter"
 
 # using the default host and port for redis configuration
-redis_uri: "redis://127.0.0.1:6369"
+redis_uri: "redis://127.0.0.1:6379"
