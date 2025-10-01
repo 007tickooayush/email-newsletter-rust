@@ -6,3 +6,4 @@ pub mod domain;
 pub mod email_request;
 pub mod email_client;
 pub mod authentication;
+pub mod session_state;

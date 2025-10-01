@@ -19,6 +19,8 @@ mod email_client;
 mod email_request;
 mod authentication;
 
+mod session_state;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
