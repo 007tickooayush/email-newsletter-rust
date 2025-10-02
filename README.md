@@ -126,3 +126,8 @@ sqlx migrate add remove_salt_from_users
 ```bash
 chmod +x ./scripts/init_redis.sh
 ```
+
+## Script to initialize add seed user sql file:
+```bash
+sqlx migrate add seed_user
+```

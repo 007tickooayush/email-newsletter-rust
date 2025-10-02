@@ -13,7 +13,7 @@ use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
 use crate::configuration::{get_configuration, DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::{admin_dashboard, confirm, health_check, home, login, login_form, publish_newsletter, subscribe};
+use crate::routes::{admin_dashboard, change_password, change_password_form, confirm, health_check, home, login, login_form, publish_newsletter, subscribe};
 use crate::telemetry::{get_subscriber, init_subscriber};
 
 /// A new type for the application server
@@ -138,6 +138,8 @@ pub async fn run(
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
             .route("/admin/dashboard", web::get().to(admin_dashboard))
+            .route("/admin/password", web::get().to(change_password_form))
+            .route("/admin/password", web::post().to(change_password))
             .wrap(message_framework.clone())
             .wrap(SessionMiddleware::new(redis_store.clone(), secret_key.clone()))
             // use `TracingLogger` provided by `tracing-actix-web` crate instead of `Logger` of actix_web crate
