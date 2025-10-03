@@ -21,6 +21,8 @@ mod authentication;
 
 mod session_state;
 
+mod utils;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 

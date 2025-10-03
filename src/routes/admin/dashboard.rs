@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use anyhow::Context;
 use crate::session_state::TypedSession;
+use crate::utils::e500;
 // required for get_username anyhow::Error handling
 
 pub async fn admin_dashboard(
@@ -30,6 +31,10 @@ pub async fn admin_dashboard(
                 </head>
                 <body>
                 <p>Welcome {username}!</p>
+                <p>Available actions:</p>
+                <ol>
+                <li><a href="/admin/password">Change password</a></li>
+                </ol>
                 </body>
                 </html>
                 "#
@@ -57,12 +62,4 @@ async fn get_username(
         .await
         .context("failed to fetch username")?;
     Ok(row.username)
-}
-
-/// Function to return an opaque 500 while logging the cause
-fn e500<T>(e: T) -> actix_web::Error
-where
-    T: std::fmt::Debug + std::fmt::Display + 'static
-{
-    actix_web::error::ErrorInternalServerError(e)
 }
