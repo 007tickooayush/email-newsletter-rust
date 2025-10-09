@@ -10,7 +10,8 @@ pub async fn login_form(
 ) -> HttpResponse {
     let mut error_html = String::new();
 
-    for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
+    // iterate over all type of Flash Messages instead of only errors
+    for m in flash_messages.iter() { // .filter(|m| m.level() == Level::Error)
         writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
     }
 
