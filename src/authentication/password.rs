@@ -1,3 +1,5 @@
+// Everything from the authentication.rs file moved to this file
+
 use anyhow::Context;
 use argon2::{
     Algorithm, Argon2, Params, PasswordHash,

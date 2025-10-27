@@ -43,6 +43,7 @@ urlencoding = "2.0.0"
 htmlescape = "0.3.0"
 actix-web-flash-messages = { version = "0.3", features = ["cookies"]}
 serde_json = "1.0.0"
+actix-web-lab = "0.15.0"
 
 [dependencies.actix-session]
 # Using the official (but unreleased) version of actix-session to manage

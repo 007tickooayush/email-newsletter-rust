@@ -11,6 +11,7 @@ use secrecy::{ExposeSecret, Secret};
 use sqlx::{PgPool};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
+use crate::authentication::reject_anonymous_users;
 use crate::configuration::{get_configuration, DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
 use crate::routes::{admin_dashboard, change_password, change_password_form, confirm, health_check, home, login, login_form, logout, publish_newsletter, subscribe};
@@ -137,10 +138,14 @@ pub async fn run(
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
-            .route("/admin/dashboard", web::get().to(admin_dashboard))
-            .route("/admin/password", web::get().to(change_password_form))
-            .route("/admin/password", web::post().to(change_password))
-            .route("/admin/logout", web::post().to(logout))
+            .service(
+                web::scope("/admin")
+                    .route("/dashboard", web::get().to(admin_dashboard))
+                    .route("/password", web::get().to(change_password_form))
+                    .route("/password", web::post().to(change_password))
+                    .route("/logout", web::post().to(logout))
+                    .wrap(actix_web_lab::middleware::from_fn(reject_anonymous_users))
+            )
             .wrap(message_framework.clone())
             .wrap(SessionMiddleware::new(redis_store.clone(), secret_key.clone()))
             // use `TracingLogger` provided by `tracing-actix-web` crate instead of `Logger` of actix_web crate
